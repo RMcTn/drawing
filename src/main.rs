@@ -44,7 +44,9 @@ fn main() {
     let mut working_stroke = Stroke::new(Color::BLACK);
     let mut draw_x_offset = 0.0;
     let mut draw_y_offset = 0.0;
+    let mut last_mouse_pos = rl.get_mouse_position();
     while !rl.window_should_close() {
+        let mouse_pos = rl.get_mouse_position();
         if rl.is_key_down(KeyboardKey::KEY_A) {
             draw_x_offset -= 5.0;
         }
@@ -57,7 +59,21 @@ fn main() {
         if rl.is_key_down(KeyboardKey::KEY_W) {
             draw_y_offset -= 5.0;
         }
+
+        if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
+            // Dragging
+            // TODO(reece): As we add more states, the amount of checks we need to do for each
+            // action grows. Move to something that just checks if the current action is what we
+            // want, enum or something
+
+            // TODO(reece): To be tested on an actual mouse so left click + right click can be done
+            // together
+            let mouse_diff = mouse_pos - last_mouse_pos;
+            draw_x_offset -= mouse_diff.x;
+            draw_y_offset -= mouse_diff.y;
+        }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+            // Drawing
             if is_erasing {
                 break;
             }
@@ -65,7 +81,6 @@ fn main() {
                 working_stroke = Stroke::new(Color::BLACK);
                 is_drawing = true;
             }
-            let mouse_pos = rl.get_mouse_position();
 
             let point = Point {
                 x: mouse_pos.x + draw_x_offset,
@@ -74,6 +89,7 @@ fn main() {
             working_stroke.points.push(point);
         }
         if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+            // Finished drawing
             if is_drawing {
                 lines.push(working_stroke);
                 working_stroke = Stroke::new(Color::BLACK);
@@ -81,7 +97,10 @@ fn main() {
             is_drawing = false;
         }
 
-        if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
+        // TODO(reece): Using middle mouse for erasing for now, better moving to brush state later
+        // so erasing/drawing can be the same action, just a different brush
+        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
+            // Erasing
             if is_drawing {
                 break;
             }
@@ -89,20 +108,22 @@ fn main() {
                 working_stroke = Stroke::new(Color::WHITE);
                 is_erasing = true;
             }
-            let mouse_pos = rl.get_mouse_position();
             let point = Point {
                 x: mouse_pos.x + draw_x_offset,
                 y: mouse_pos.y + draw_y_offset,
             };
             working_stroke.points.push(point);
         }
-        if rl.is_mouse_button_up(MouseButton::MOUSE_RIGHT_BUTTON) {
+        if rl.is_mouse_button_up(MouseButton::MOUSE_MIDDLE_BUTTON) {
+            // Finished erasing
             if is_erasing {
                 lines.push(working_stroke);
                 working_stroke = Stroke::new(Color::BLACK);
             }
             is_erasing = false;
         }
+
+        last_mouse_pos = mouse_pos;
 
         let mut drawing = rl.begin_drawing(&thread);
 
