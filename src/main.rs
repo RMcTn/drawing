@@ -42,7 +42,21 @@ fn main() {
     let mut is_drawing = false;
     let mut is_erasing = false;
     let mut working_stroke = Stroke::new(Color::BLACK);
+    let mut draw_x_offset = 0.0;
+    let mut draw_y_offset = 0.0;
     while !rl.window_should_close() {
+        if rl.is_key_down(KeyboardKey::KEY_A) {
+            draw_x_offset -= 5.0;
+        }
+        if rl.is_key_down(KeyboardKey::KEY_D) {
+            draw_x_offset += 5.0;
+        }
+        if rl.is_key_down(KeyboardKey::KEY_S) {
+            draw_y_offset += 5.0;
+        }
+        if rl.is_key_down(KeyboardKey::KEY_W) {
+            draw_y_offset -= 5.0;
+        }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             if is_erasing {
                 break;
@@ -52,9 +66,10 @@ fn main() {
                 is_drawing = true;
             }
             let mouse_pos = rl.get_mouse_position();
+
             let point = Point {
-                x: mouse_pos.x,
-                y: mouse_pos.y,
+                x: mouse_pos.x + draw_x_offset,
+                y: mouse_pos.y + draw_y_offset,
             };
             working_stroke.points.push(point);
         }
@@ -76,8 +91,8 @@ fn main() {
             }
             let mouse_pos = rl.get_mouse_position();
             let point = Point {
-                x: mouse_pos.x,
-                y: mouse_pos.y,
+                x: mouse_pos.x + draw_x_offset,
+                y: mouse_pos.y + draw_y_offset,
             };
             working_stroke.points.push(point);
         }
@@ -93,15 +108,33 @@ fn main() {
 
         drawing.clear_background(Color::WHITE);
         for line in &lines {
-            draw_stroke(&mut drawing, &line, brush_size);
+            draw_stroke(
+                &mut drawing,
+                &line,
+                brush_size,
+                draw_x_offset,
+                draw_y_offset,
+            );
         }
 
         // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
-        draw_stroke(&mut drawing, &working_stroke, brush_size);
+        draw_stroke(
+            &mut drawing,
+            &working_stroke,
+            brush_size,
+            draw_x_offset,
+            draw_y_offset,
+        );
     }
 }
 
-fn draw_stroke(drawing: &mut RaylibDrawHandle, stroke: &Stroke, brush_size: f32) {
+fn draw_stroke(
+    drawing: &mut RaylibDrawHandle,
+    stroke: &Stroke,
+    brush_size: f32,
+    x_offset: f32,
+    y_offset: f32,
+) {
     if stroke.points.len() == 0 {
         return;
     }
@@ -110,12 +143,12 @@ fn draw_stroke(drawing: &mut RaylibDrawHandle, stroke: &Stroke, brush_size: f32)
         let next_point = &stroke.points[i + 1];
 
         let first_vec = Vector2 {
-            x: point.x,
-            y: point.y,
+            x: point.x - x_offset,
+            y: point.y - y_offset,
         };
         let last_vec = Vector2 {
-            x: next_point.x,
-            y: next_point.y,
+            x: next_point.x - x_offset,
+            y: next_point.y - y_offset,
         };
 
         // We're drawing the line + circle here just cause it looks a bit better (circle hides the blockiness of the line)
