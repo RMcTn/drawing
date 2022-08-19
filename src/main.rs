@@ -23,6 +23,16 @@ impl Stroke {
     }
 }
 
+struct Brush {
+    brush_type: BrushType,
+    brush_size: f32,
+}
+
+enum BrushType {
+    Drawing,
+    Erasing,
+}
+
 fn main() {
     println!("Hello, world!");
     let screen_width = 1280;
@@ -40,12 +50,18 @@ fn main() {
     let mut lines: Vec<Stroke> = Vec::new();
 
     let mut is_drawing = false;
-    let mut is_erasing = false;
     let mut working_stroke = Stroke::new(Color::BLACK);
     let mut draw_x_offset = 0.0;
     let mut draw_y_offset = 0.0;
     let mut last_mouse_pos = rl.get_mouse_position();
+
+    let mut brush = Brush {
+        brush_type: BrushType::Drawing,
+        brush_size,
+    };
+
     while !rl.window_should_close() {
+        // TODO(reece): Zooming, but not big priority
         let mouse_pos = rl.get_mouse_position();
         if rl.is_key_down(KeyboardKey::KEY_A) {
             draw_x_offset -= 5.0;
@@ -58,6 +74,16 @@ fn main() {
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
             draw_y_offset -= 5.0;
+        }
+
+        if rl.is_key_down(KeyboardKey::KEY_E) {
+            // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
+            // the working stroke off when changing brush type
+            brush.brush_type = BrushType::Erasing;
+        }
+
+        if rl.is_key_down(KeyboardKey::KEY_Q) {
+            brush.brush_type = BrushType::Drawing;
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
@@ -74,11 +100,15 @@ fn main() {
         }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             // Drawing
-            if is_erasing {
-                break;
-            }
             if !is_drawing {
-                working_stroke = Stroke::new(Color::BLACK);
+                let brush_color = match &brush.brush_type {
+                    // TODO(reece): Will want these colours to be dynamic (whatever user
+                    // picked (drawing)/whatever bg colour is (erasing))
+                    BrushType::Drawing => Color::BLACK,
+                    BrushType::Erasing => Color::WHITE,
+                };
+
+                working_stroke = Stroke::new(brush_color);
                 is_drawing = true;
             }
 
@@ -95,32 +125,6 @@ fn main() {
                 working_stroke = Stroke::new(Color::BLACK);
             }
             is_drawing = false;
-        }
-
-        // TODO(reece): Using middle mouse for erasing for now, better moving to brush state later
-        // so erasing/drawing can be the same action, just a different brush
-        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
-            // Erasing
-            if is_drawing {
-                break;
-            }
-            if !is_erasing {
-                working_stroke = Stroke::new(Color::WHITE);
-                is_erasing = true;
-            }
-            let point = Point {
-                x: mouse_pos.x + draw_x_offset,
-                y: mouse_pos.y + draw_y_offset,
-            };
-            working_stroke.points.push(point);
-        }
-        if rl.is_mouse_button_up(MouseButton::MOUSE_MIDDLE_BUTTON) {
-            // Finished erasing
-            if is_erasing {
-                lines.push(working_stroke);
-                working_stroke = Stroke::new(Color::BLACK);
-            }
-            is_erasing = false;
         }
 
         last_mouse_pos = mouse_pos;
@@ -146,6 +150,14 @@ fn main() {
             draw_x_offset,
             draw_y_offset,
         );
+
+        let brush_type_str = match &brush.brush_type {
+            BrushType::Drawing => "Drawing",
+            BrushType::Erasing => "Erasing",
+        };
+        let brush_size_str = brush.brush_size.to_string();
+        drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
+        drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
     }
 }
 
