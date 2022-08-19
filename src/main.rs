@@ -11,14 +11,16 @@ struct Stroke {
     // for example
     points: Vec<Point>,
     color: Color,
+    brush_size: f32,
 }
 
 impl Stroke {
-    fn new(color: Color) -> Self {
+    fn new(color: Color, brush_size: f32) -> Self {
         let default_num_of_points = 30;
         Stroke {
             points: Vec::with_capacity(default_num_of_points),
             color,
+            brush_size,
         }
     }
 }
@@ -48,17 +50,16 @@ fn main() {
     let brush_size = 10.0;
 
     let mut lines: Vec<Stroke> = Vec::new();
-
-    let mut is_drawing = false;
-    let mut working_stroke = Stroke::new(Color::BLACK);
-    let mut draw_x_offset = 0.0;
-    let mut draw_y_offset = 0.0;
-    let mut last_mouse_pos = rl.get_mouse_position();
-
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
         brush_size,
     };
+
+    let mut is_drawing = false;
+    let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
+    let mut draw_x_offset = 0.0;
+    let mut draw_y_offset = 0.0;
+    let mut last_mouse_pos = rl.get_mouse_position();
 
     while !rl.window_should_close() {
         // TODO(reece): Zooming, but not big priority
@@ -76,21 +77,32 @@ fn main() {
             draw_y_offset -= 5.0;
         }
 
-        if rl.is_key_down(KeyboardKey::KEY_E) {
+        if rl.is_key_pressed(KeyboardKey::KEY_E) {
             // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
             // the working stroke off when changing brush type
             brush.brush_type = BrushType::Erasing;
         }
 
-        if rl.is_key_down(KeyboardKey::KEY_Q) {
+        if rl.is_key_pressed(KeyboardKey::KEY_Q) {
             brush.brush_type = BrushType::Drawing;
+        }
+
+        if rl.is_key_pressed(KeyboardKey::KEY_LEFT_BRACKET) {
+            // TODO(reece): Changing brush size mid stroke doesn't affect the stroke. Is this the
+            // behaviour we want?
+            // TODO(reece): Make the brush size changing delay based rather than just key pressed,
+            // so we can change brush sizes faster
+            brush.brush_size -= 5.0;
+            if brush.brush_size < 0.0 {
+                brush.brush_size = 0.0;
+            }
+        }
+        if rl.is_key_pressed(KeyboardKey::KEY_RIGHT_BRACKET) {
+            brush.brush_size += 5.0;
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
             // Dragging
-            // TODO(reece): As we add more states, the amount of checks we need to do for each
-            // action grows. Move to something that just checks if the current action is what we
-            // want, enum or something
 
             // TODO(reece): To be tested on an actual mouse so left click + right click can be done
             // together
@@ -108,7 +120,7 @@ fn main() {
                     BrushType::Erasing => Color::WHITE,
                 };
 
-                working_stroke = Stroke::new(brush_color);
+                working_stroke = Stroke::new(brush_color, brush.brush_size);
                 is_drawing = true;
             }
 
@@ -122,7 +134,7 @@ fn main() {
             // Finished drawing
             if is_drawing {
                 lines.push(working_stroke);
-                working_stroke = Stroke::new(Color::BLACK);
+                working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
             }
             is_drawing = false;
         }
@@ -136,7 +148,7 @@ fn main() {
             draw_stroke(
                 &mut drawing,
                 &line,
-                brush_size,
+                line.brush_size,
                 draw_x_offset,
                 draw_y_offset,
             );
@@ -146,7 +158,7 @@ fn main() {
         draw_stroke(
             &mut drawing,
             &working_stroke,
-            brush_size,
+            working_stroke.brush_size,
             draw_x_offset,
             draw_y_offset,
         );
