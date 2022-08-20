@@ -7,11 +7,11 @@ struct Point {
 }
 
 struct Stroke {
-    // TODO(reece): Want to turn this into an enum for the types of stroke? paint/erase stroke
-    // for example
     points: Vec<Point>,
     color: Color,
     brush_size: f32,
+    // TODO(reece): Could store the brush used in the stroke so we know the parameters of each
+    // stroke
 }
 
 impl Stroke {
@@ -48,7 +48,8 @@ fn main() {
 
     let brush_size = 10.0;
 
-    let mut lines: Vec<Stroke> = Vec::new();
+    let mut strokes: Vec<Stroke> = Vec::with_capacity(10);
+    let mut stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
         brush_size,
@@ -65,8 +66,6 @@ fn main() {
         // first approach for zooming is not good. just scales whatever the brush size is of what was drawn.
         // We want the actual "viewport" to show a "zoomed"/"smaller" window when zoomed in
         // TODO(reece): Ctrl + mousewheel for brush size changing
-        // TODO(reece): Undo/Redo
-        // Command pattern for undo https://gameprogrammingpatterns.com/command.html
         let mouse_pos = rl.get_mouse_position();
         if rl.is_key_down(KeyboardKey::KEY_A) {
             draw_x_offset -= 5.0;
@@ -79,6 +78,21 @@ fn main() {
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
             draw_y_offset -= 5.0;
+        }
+
+        if rl.is_key_pressed(KeyboardKey::KEY_Z) {
+            // Undo
+            match strokes.pop() {
+                None => {} // Nothing to undo
+                Some(undone_stroke) => stroke_graveyard.push(undone_stroke),
+            }
+        }
+        if rl.is_key_pressed(KeyboardKey::KEY_R) {
+            // Redo
+            match stroke_graveyard.pop() {
+                None => {} // Nothing to redo
+                Some(redone_stroke) => strokes.push(redone_stroke),
+            }
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_E) {
@@ -137,7 +151,7 @@ fn main() {
         if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
             // Finished drawing
             if is_drawing {
-                lines.push(working_stroke);
+                strokes.push(working_stroke);
                 working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
             }
             is_drawing = false;
@@ -148,7 +162,7 @@ fn main() {
         let mut drawing = rl.begin_drawing(&thread);
 
         drawing.clear_background(Color::WHITE);
-        for line in &lines {
+        for line in &strokes {
             draw_stroke(
                 &mut drawing,
                 &line,
