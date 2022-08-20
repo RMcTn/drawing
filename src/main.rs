@@ -36,7 +36,6 @@ enum BrushType {
 }
 
 fn main() {
-    println!("Hello, world!");
     let screen_width = 1280;
     let screen_height = 720;
 
@@ -63,6 +62,11 @@ fn main() {
 
     while !rl.window_should_close() {
         // TODO(reece): Zooming, but not big priority
+        // first approach for zooming is not good. just scales whatever the brush size is of what was drawn.
+        // We want the actual "viewport" to show a "zoomed"/"smaller" window when zoomed in
+        // TODO(reece): Ctrl + mousewheel for brush size changing
+        // TODO(reece): Undo/Redo
+        // Command pattern for undo https://gameprogrammingpatterns.com/command.html
         let mouse_pos = rl.get_mouse_position();
         if rl.is_key_down(KeyboardKey::KEY_A) {
             draw_x_offset -= 5.0;
@@ -163,6 +167,14 @@ fn main() {
             draw_y_offset,
         );
 
+        drawing.draw_circle_lines(
+            mouse_pos.x as i32,
+            mouse_pos.y as i32,
+            // Draw circle wants radius
+            brush.brush_size / 2.0,
+            Color::BLACK,
+        );
+
         let brush_type_str = match &brush.brush_type {
             BrushType::Drawing => "Drawing",
             BrushType::Erasing => "Erasing",
@@ -198,6 +210,7 @@ fn draw_stroke(
 
         // We're drawing the line + circle here just cause it looks a bit better (circle hides the blockiness of the line)
         drawing.draw_line_ex(first_vec, last_vec, brush_size, stroke.color);
+        // Half the brush size here since draw call wants radius
         drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color);
     }
 }
