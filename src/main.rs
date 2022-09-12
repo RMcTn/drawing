@@ -73,16 +73,16 @@ fn main() {
         // TODO(reece): Ctrl + mousewheel for brush size changing
         let mouse_pos = rl.get_mouse_position();
         if rl.is_key_down(KeyboardKey::KEY_A) {
-            camera.offset.x -= 5.0;
-        }
-        if rl.is_key_down(KeyboardKey::KEY_D) {
             camera.offset.x += 5.0;
         }
+        if rl.is_key_down(KeyboardKey::KEY_D) {
+            camera.offset.x -= 5.0;
+        }
         if rl.is_key_down(KeyboardKey::KEY_S) {
-            camera.offset.y += 5.0;
+            camera.offset.y -= 5.0;
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
-            camera.offset.y -= 5.0;
+            camera.offset.y += 5.0;
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
@@ -133,8 +133,8 @@ fn main() {
             // TODO(reece): To be tested on an actual mouse so left click + right click can be done
             // together
             let mouse_diff = mouse_pos - last_mouse_pos;
-            camera.offset.x -= mouse_diff.x;
-            camera.offset.y -= mouse_diff.y;
+            camera.offset.x += mouse_diff.x;
+            camera.offset.y += mouse_diff.y;
         }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             // Drawing
@@ -150,13 +150,9 @@ fn main() {
                 is_drawing = true;
             }
 
-            // let point = Point {
-            //     x: mouse_pos.x + draw_x_offset,
-            //     y: mouse_pos.y + draw_y_offset,
-            // };
             let point = Point {
-                x: mouse_pos.x + camera.offset.x,
-                y: mouse_pos.y + camera.offset.y,
+                x: mouse_pos.x - camera.offset.x,
+                y: mouse_pos.y - camera.offset.y,
             };
             working_stroke.points.push(point);
         }
@@ -172,27 +168,30 @@ fn main() {
         last_mouse_pos = mouse_pos;
 
         let mut drawing = rl.begin_drawing(&thread);
+        {
+            let mut drawing_camera = drawing.begin_mode2D(camera);
 
-        drawing.clear_background(Color::WHITE);
-        for line in &strokes {
-            draw_stroke(&mut drawing, &line, line.brush_size, camera);
+            drawing_camera.clear_background(Color::WHITE);
+            for line in &strokes {
+                draw_stroke(&mut drawing_camera, &line, line.brush_size, camera);
+            }
+
+            // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
+            draw_stroke(
+                &mut drawing_camera,
+                &working_stroke,
+                working_stroke.brush_size,
+                camera,
+            );
+
+            drawing_camera.draw_circle_lines(
+                (mouse_pos.x - camera.offset.x) as i32,
+                (mouse_pos.y - camera.offset.y) as i32,
+                // Draw circle wants radius
+                brush.brush_size / 2.0,
+                Color::BLACK,
+            );
         }
-
-        // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
-        draw_stroke(
-            &mut drawing,
-            &working_stroke,
-            working_stroke.brush_size,
-            camera,
-        );
-
-        drawing.draw_circle_lines(
-            mouse_pos.x as i32,
-            mouse_pos.y as i32,
-            // Draw circle wants radius
-            brush.brush_size / 2.0,
-            Color::BLACK,
-        );
 
         let brush_type_str = match &brush.brush_type {
             BrushType::Drawing => "Drawing",
@@ -204,7 +203,12 @@ fn main() {
     }
 }
 
-fn draw_stroke(drawing: &mut RaylibDrawHandle, stroke: &Stroke, brush_size: f32, camera: Camera2D) {
+fn draw_stroke(
+    drawing: &mut RaylibMode2D<RaylibDrawHandle>,
+    stroke: &Stroke,
+    brush_size: f32,
+    camera: Camera2D,
+) {
     if stroke.points.len() == 0 {
         return;
     }
@@ -213,12 +217,12 @@ fn draw_stroke(drawing: &mut RaylibDrawHandle, stroke: &Stroke, brush_size: f32,
         let next_point = &stroke.points[i + 1];
 
         let first_vec = Vector2 {
-            x: point.x - camera.offset.x,
-            y: point.y - camera.offset.y,
+            x: point.x,
+            y: point.y,
         };
         let last_vec = Vector2 {
-            x: next_point.x - camera.offset.x,
-            y: next_point.y - camera.offset.y,
+            x: next_point.x,
+            y: next_point.y,
         };
 
         // We're drawing the line + circle here just cause it looks a bit better (circle hides the blockiness of the line)
