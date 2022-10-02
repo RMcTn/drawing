@@ -69,6 +69,7 @@ fn main() {
     while !rl.window_should_close() {
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
+        // TODO(reece): Window resizing
         // TODO(reece): Ctrl + mousewheel for brush size changing
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = (mouse_pos - camera.offset) / camera.zoom;
@@ -176,6 +177,8 @@ fn main() {
 
         let mouse_wheel_diff = rl.get_mouse_wheel_move();
         let mouse_wheel_dampening = 0.065;
+        // This stuff "works" but it's an awful experience. Seems way worse when the window is a
+        // smaller portion of the overall screen size due to scaling
         camera.zoom += mouse_wheel_diff * mouse_wheel_dampening;
 
         if camera.zoom < 0.1 {
