@@ -67,11 +67,12 @@ fn main() {
     let mut last_mouse_pos = rl.get_mouse_position();
 
     while !rl.window_should_close() {
-        // TODO(reece): Zooming, but not big priority
-        // first approach for zooming is not good. just scales whatever the brush size is of what was drawn.
-        // We want the actual "viewport" to show a "zoomed"/"smaller" window when zoomed in
+        // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
+        // "top left corner"
         // TODO(reece): Ctrl + mousewheel for brush size changing
         let mouse_pos = rl.get_mouse_position();
+        let drawing_pos = (mouse_pos - camera.offset) / camera.zoom;
+
         if rl.is_key_down(KeyboardKey::KEY_A) {
             camera.offset.x += 5.0;
         }
@@ -127,6 +128,14 @@ fn main() {
             // Create bunch of strokes with random coords in screen space for benchmark testing
         }
 
+        if rl.is_key_pressed(KeyboardKey::KEY_P) {
+            camera.zoom += 0.05;
+        }
+
+        if rl.is_key_pressed(KeyboardKey::KEY_L) {
+            camera.zoom -= 0.05;
+        }
+
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
             // Dragging
 
@@ -151,8 +160,8 @@ fn main() {
             }
 
             let point = Point {
-                x: mouse_pos.x - camera.offset.x,
-                y: mouse_pos.y - camera.offset.y,
+                x: drawing_pos.x,
+                y: drawing_pos.y,
             };
             working_stroke.points.push(point);
         }
@@ -165,6 +174,16 @@ fn main() {
             is_drawing = false;
         }
 
+        camera.zoom += rl.get_mouse_wheel_move() * 0.1;
+
+        if camera.zoom < 0.1 {
+            camera.zoom = 0.1;
+        }
+
+        if camera.zoom > 10.0 {
+            camera.zoom = 10.0;
+        }
+
         last_mouse_pos = mouse_pos;
 
         let mut drawing = rl.begin_drawing(&thread);
@@ -173,7 +192,7 @@ fn main() {
 
             drawing_camera.clear_background(Color::WHITE);
             for line in &strokes {
-                draw_stroke(&mut drawing_camera, &line, line.brush_size, camera);
+                draw_stroke(&mut drawing_camera, &line, line.brush_size);
             }
 
             // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
@@ -181,12 +200,11 @@ fn main() {
                 &mut drawing_camera,
                 &working_stroke,
                 working_stroke.brush_size,
-                camera,
             );
 
             drawing_camera.draw_circle_lines(
-                (mouse_pos.x - camera.offset.x) as i32,
-                (mouse_pos.y - camera.offset.y) as i32,
+                drawing_pos.x as i32,
+                drawing_pos.y as i32,
                 // Draw circle wants radius
                 brush.brush_size / 2.0,
                 Color::BLACK,
@@ -198,17 +216,14 @@ fn main() {
             BrushType::Erasing => "Erasing",
         };
         let brush_size_str = brush.brush_size.to_string();
+        let zoom_str = camera.zoom.to_string();
         drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
+        drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
     }
 }
 
-fn draw_stroke(
-    drawing: &mut RaylibMode2D<RaylibDrawHandle>,
-    stroke: &Stroke,
-    brush_size: f32,
-    camera: Camera2D,
-) {
+fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke, brush_size: f32) {
     if stroke.points.len() == 0 {
         return;
     }
