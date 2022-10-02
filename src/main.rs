@@ -117,8 +117,8 @@ fn main() {
             // TODO(reece): Make the brush size changing delay based rather than just key pressed,
             // so we can change brush sizes faster
             brush.brush_size -= 5.0;
-            if brush.brush_size < 0.0 {
-                brush.brush_size = 0.0;
+            if brush.brush_size < 1.0 {
+                brush.brush_size = 1.0;
             }
         }
         if rl.is_key_pressed(KeyboardKey::KEY_RIGHT_BRACKET) {
@@ -174,7 +174,9 @@ fn main() {
             is_drawing = false;
         }
 
-        camera.zoom += rl.get_mouse_wheel_move() * 0.1;
+        let mouse_wheel_diff = rl.get_mouse_wheel_move();
+        let mouse_wheel_dampening = 0.065;
+        camera.zoom += mouse_wheel_diff * mouse_wheel_dampening;
 
         if camera.zoom < 0.1 {
             camera.zoom = 0.1;
