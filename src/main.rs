@@ -56,13 +56,13 @@ fn main() {
         zoom: 1.0,
     };
 
-    let brush_size = 10.0;
+    let initial_brush_size = 10.0;
 
     let mut strokes: Vec<Stroke> = Vec::with_capacity(10);
     let mut stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
-        brush_size,
+        brush_size: initial_brush_size,
     };
 
     let mut is_drawing = false;
@@ -72,7 +72,6 @@ fn main() {
     while !rl.window_should_close() {
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
-        // TODO(reece): Ctrl + mousewheel for brush size changing
 
         screen_width = rl.get_screen_width();
         screen_height = rl.get_screen_height();
@@ -117,9 +116,6 @@ fn main() {
             // TODO(reece): Make the brush size changing delay based rather than just key pressed,
             // so we can change brush sizes faster
             brush.brush_size -= 5.0;
-            if brush.brush_size < 1.0 {
-                brush.brush_size = 1.0;
-            }
         }
         if rl.is_key_pressed(KeyboardKey::KEY_RIGHT_BRACKET) {
             brush.brush_size += 5.0;
@@ -168,7 +164,17 @@ fn main() {
             is_drawing = false;
         }
 
-        apply_mouse_wheel_zoom(&rl, &mut camera);
+        let mouse_wheel_diff = rl.get_mouse_wheel_move();
+        if rl.is_key_up(KeyboardKey::KEY_LEFT_CONTROL) {
+            apply_mouse_wheel_zoom(mouse_wheel_diff, &mut camera);
+        }
+
+        if rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL) {
+            apply_mouse_wheel_brush_size(mouse_wheel_diff, &mut brush);
+        }
+
+        clamp_brush_size(&mut brush);
+
         clamp_camera_zoom(&mut camera);
 
         last_mouse_pos = mouse_pos;
@@ -278,12 +284,16 @@ fn redo_stroke(strokes: &mut Vec<Stroke>, stroke_graveyard: &mut Vec<Stroke>) {
     }
 }
 
-fn apply_mouse_wheel_zoom(rl: &RaylibHandle, camera: &mut Camera2D) {
-    let mouse_wheel_diff = rl.get_mouse_wheel_move();
-    let mouse_wheel_dampening = 0.065;
+fn apply_mouse_wheel_zoom(mouse_wheel_diff: f32, camera: &mut Camera2D) {
+    let mouse_wheel_zoom_dampening = 0.065;
     // This stuff "works" but it's an awful experience. Seems way worse when the window is a
     // smaller portion of the overall screen size due to scaling
-    camera.zoom += mouse_wheel_diff * mouse_wheel_dampening;
+    camera.zoom += mouse_wheel_diff * mouse_wheel_zoom_dampening;
+}
+
+fn apply_mouse_wheel_brush_size(mouse_wheel_diff: f32, brush: &mut Brush) {
+    let mouse_wheel_amplifying = 1.50;
+    brush.brush_size += mouse_wheel_diff * mouse_wheel_amplifying;
 }
 
 fn clamp_camera_zoom(camera: &mut Camera2D) {
@@ -293,5 +303,11 @@ fn clamp_camera_zoom(camera: &mut Camera2D) {
 
     if camera.zoom > 10.0 {
         camera.zoom = 10.0;
+    }
+}
+
+fn clamp_brush_size(brush: &mut Brush) {
+    if brush.brush_size < 1.0 {
+        brush.brush_size = 1.0;
     }
 }
