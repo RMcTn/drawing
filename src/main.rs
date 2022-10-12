@@ -36,6 +36,8 @@ enum BrushType {
 }
 
 fn main() {
+    let debugging = false;
+
     let screen_width = 1280;
     let screen_height = 720;
 
@@ -47,7 +49,7 @@ fn main() {
     rl.set_target_fps(60);
 
     let mut camera = Camera2D {
-        offset: rvec2(0, 0),
+        offset: rvec2(screen_width / 2, screen_height / 2),
         target: rvec2(0, 0),
         rotation: 0.0,
         zoom: 1.0,
@@ -71,20 +73,21 @@ fn main() {
         // "top left corner"
         // TODO(reece): Window resizing
         // TODO(reece): Ctrl + mousewheel for brush size changing
+
         let mouse_pos = rl.get_mouse_position();
-        let drawing_pos = (mouse_pos - camera.offset) / camera.zoom;
+        let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
         if rl.is_key_down(KeyboardKey::KEY_A) {
-            camera.offset.x += 5.0;
+            camera.target.x += 5.0;
         }
         if rl.is_key_down(KeyboardKey::KEY_D) {
-            camera.offset.x -= 5.0;
+            camera.target.x -= 5.0;
         }
         if rl.is_key_down(KeyboardKey::KEY_S) {
-            camera.offset.y -= 5.0;
+            camera.target.y -= 5.0;
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
-            camera.offset.y += 5.0;
+            camera.target.y += 5.0;
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
@@ -143,8 +146,8 @@ fn main() {
             // TODO(reece): To be tested on an actual mouse so left click + right click can be done
             // together
             let mouse_diff = mouse_pos - last_mouse_pos;
-            camera.offset.x += mouse_diff.x;
-            camera.offset.y += mouse_diff.y;
+            camera.target.x -= mouse_diff.x / camera.zoom;
+            camera.target.y -= mouse_diff.y / camera.zoom;
         }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             // Drawing
@@ -207,6 +210,7 @@ fn main() {
                 working_stroke.brush_size,
             );
 
+            // Our brush marker
             drawing_camera.draw_circle_lines(
                 drawing_pos.x as i32,
                 drawing_pos.y as i32,
@@ -214,6 +218,21 @@ fn main() {
                 brush.brush_size / 2.0,
                 Color::BLACK,
             );
+
+            if debugging {
+                drawing_camera.draw_line_ex(
+                    Vector2::new(camera.target.x, (-screen_height * 10) as f32),
+                    Vector2::new(camera.target.x, (screen_height * 10) as f32),
+                    5.0,
+                    Color::PURPLE,
+                );
+                drawing_camera.draw_line_ex(
+                    Vector2::new((-screen_width * 10) as f32, camera.target.y),
+                    Vector2::new((screen_width * 10) as f32, camera.target.y),
+                    5.0,
+                    Color::PURPLE,
+                );
+            }
         }
 
         let brush_type_str = match &brush.brush_type {
@@ -225,6 +244,13 @@ fn main() {
         drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
         drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
+
+        if debugging {
+            let target_str = format!("target {:?}", camera.target);
+            drawing.draw_text(&target_str, 5, 90, 30, Color::RED);
+            let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
+            drawing.draw_text(&drawing_pos_str, 5, 120, 30, Color::RED);
+        }
     }
 }
 
