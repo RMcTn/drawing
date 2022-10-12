@@ -91,18 +91,10 @@ fn main() {
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
-            // Undo
-            match strokes.pop() {
-                None => {} // Nothing to undo
-                Some(undone_stroke) => stroke_graveyard.push(undone_stroke),
-            }
+            undo_stroke(&mut strokes, &mut stroke_graveyard);
         }
         if rl.is_key_pressed(KeyboardKey::KEY_R) {
-            // Redo
-            match stroke_graveyard.pop() {
-                None => {} // Nothing to redo
-                Some(redone_stroke) => strokes.push(redone_stroke),
-            }
+            redo_stroke(&mut strokes, &mut stroke_graveyard);
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_E) {
@@ -141,13 +133,7 @@ fn main() {
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
-            // Dragging
-
-            // TODO(reece): To be tested on an actual mouse so left click + right click can be done
-            // together
-            let mouse_diff = mouse_pos - last_mouse_pos;
-            camera.target.x -= mouse_diff.x / camera.zoom;
-            camera.target.y -= mouse_diff.y / camera.zoom;
+            apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut camera);
         }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             // Drawing
@@ -178,19 +164,8 @@ fn main() {
             is_drawing = false;
         }
 
-        let mouse_wheel_diff = rl.get_mouse_wheel_move();
-        let mouse_wheel_dampening = 0.065;
-        // This stuff "works" but it's an awful experience. Seems way worse when the window is a
-        // smaller portion of the overall screen size due to scaling
-        camera.zoom += mouse_wheel_diff * mouse_wheel_dampening;
-
-        if camera.zoom < 0.1 {
-            camera.zoom = 0.1;
-        }
-
-        if camera.zoom > 10.0 {
-            camera.zoom = 10.0;
-        }
+        apply_mouse_wheel_zoom(&rl, &mut camera);
+        clamp_camera_zoom(&mut camera);
 
         last_mouse_pos = mouse_pos;
 
@@ -275,5 +250,44 @@ fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke, br
         drawing.draw_line_ex(first_vec, last_vec, brush_size, stroke.color);
         // Half the brush size here since draw call wants radius
         drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color);
+    }
+}
+
+fn apply_mouse_drag_to_camera(mouse_pos: Vector2, last_mouse_pos: Vector2, camera: &mut Camera2D) {
+    // TODO(reece): Dragging and drawing can be done together at the moment, but it's very jaggy
+    let mouse_diff = mouse_pos - last_mouse_pos;
+    camera.target.x -= mouse_diff.x / camera.zoom;
+    camera.target.y -= mouse_diff.y / camera.zoom;
+}
+
+fn undo_stroke(strokes: &mut Vec<Stroke>, stroke_graveyard: &mut Vec<Stroke>) {
+    match strokes.pop() {
+        None => {} // Nothing to undo
+        Some(undone_stroke) => stroke_graveyard.push(undone_stroke),
+    }
+}
+
+fn redo_stroke(strokes: &mut Vec<Stroke>, stroke_graveyard: &mut Vec<Stroke>) {
+    match stroke_graveyard.pop() {
+        None => {} // Nothing to undo
+        Some(redone_stroke) => strokes.push(redone_stroke),
+    }
+}
+
+fn apply_mouse_wheel_zoom(rl: &RaylibHandle, camera: &mut Camera2D) {
+    let mouse_wheel_diff = rl.get_mouse_wheel_move();
+    let mouse_wheel_dampening = 0.065;
+    // This stuff "works" but it's an awful experience. Seems way worse when the window is a
+    // smaller portion of the overall screen size due to scaling
+    camera.zoom += mouse_wheel_diff * mouse_wheel_dampening;
+}
+
+fn clamp_camera_zoom(camera: &mut Camera2D) {
+    if camera.zoom < 0.1 {
+        camera.zoom = 0.1;
+    }
+
+    if camera.zoom > 10.0 {
+        camera.zoom = 10.0;
     }
 }
