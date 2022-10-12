@@ -1,3 +1,8 @@
+use std::{
+    thread,
+    time::{self, Instant},
+};
+
 use raylib::prelude::{Vector2, *};
 
 #[derive(Debug)]
@@ -47,7 +52,11 @@ fn main() {
         .title("Window")
         .build();
 
-    rl.set_target_fps(60);
+    // rl.set_target_fps(60);
+
+    let target_fps = 60;
+    let seconds_per_frame = 1.0 / target_fps as f32;
+    let duration_per_frame = time::Duration::from_secs_f32(seconds_per_frame);
 
     let mut camera = Camera2D {
         offset: rvec2(screen_width / 2, screen_height / 2),
@@ -78,6 +87,7 @@ fn main() {
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
 
+        let start_time = Instant::now();
         screen_width = rl.get_screen_width();
         screen_height = rl.get_screen_height();
         camera.offset = rvec2(screen_width / 2, screen_height / 2);
@@ -245,6 +255,12 @@ fn main() {
             let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
             drawing.draw_text(&drawing_pos_str, 5, 120, 30, Color::RED);
         }
+
+        let elapsed = start_time.elapsed();
+        // dbg!(elapsed);
+        let time_to_sleep = duration_per_frame - elapsed;
+        // dbg!(time_to_sleep);
+        thread::sleep(time_to_sleep);
     }
 }
 
