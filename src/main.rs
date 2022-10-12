@@ -38,11 +38,12 @@ enum BrushType {
 fn main() {
     let debugging = false;
 
-    let screen_width = 1280;
-    let screen_height = 720;
+    let mut screen_width = 1280;
+    let mut screen_height = 720;
 
     let (mut rl, thread) = raylib::init()
         .size(screen_width, screen_height)
+        .resizable()
         .title("Window")
         .build();
 
@@ -71,8 +72,11 @@ fn main() {
     while !rl.window_should_close() {
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
-        // TODO(reece): Window resizing
         // TODO(reece): Ctrl + mousewheel for brush size changing
+
+        screen_width = rl.get_screen_width();
+        screen_height = rl.get_screen_height();
+        camera.offset = rvec2(screen_width / 2, screen_height / 2);
 
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
