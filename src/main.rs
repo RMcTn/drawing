@@ -72,6 +72,11 @@ fn main() {
     while !rl.window_should_close() {
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
+        //
+        // TODO(reece): Saving/loading?
+        // TODO(reece): Installable so it's searchable as a program
+        // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
+        // update on user input?)
 
         screen_width = rl.get_screen_width();
         screen_height = rl.get_screen_height();
