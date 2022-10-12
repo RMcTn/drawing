@@ -85,16 +85,16 @@ fn main() {
         }
 
         if rl.is_key_down(KeyboardKey::KEY_A) {
-            camera.target.x += 5.0;
-        }
-        if rl.is_key_down(KeyboardKey::KEY_D) {
             camera.target.x -= 5.0;
         }
+        if rl.is_key_down(KeyboardKey::KEY_D) {
+            camera.target.x += 5.0;
+        }
         if rl.is_key_down(KeyboardKey::KEY_S) {
-            camera.target.y -= 5.0;
+            camera.target.y += 5.0;
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
-            camera.target.y += 5.0;
+            camera.target.y -= 5.0;
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
