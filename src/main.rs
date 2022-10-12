@@ -239,8 +239,8 @@ fn main() {
             BrushType::Drawing => "Drawing",
             BrushType::Erasing => "Erasing",
         };
-        let brush_size_str = brush.brush_size.to_string();
-        let zoom_str = camera.zoom.to_string();
+        let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
+        let zoom_str = format!("Zoom: {}", camera.zoom.to_string());
         drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
         drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
