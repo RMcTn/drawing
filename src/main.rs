@@ -36,7 +36,7 @@ enum BrushType {
 }
 
 fn main() {
-    let debugging = false;
+    let mut debugging = false;
 
     let mut screen_width = 1280;
     let mut screen_height = 720;
@@ -79,6 +79,10 @@ fn main() {
 
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
+
+        if rl.is_key_pressed(KeyboardKey::KEY_M) {
+            debugging = !debugging;
+        }
 
         if rl.is_key_down(KeyboardKey::KEY_A) {
             camera.target.x += 5.0;
