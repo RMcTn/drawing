@@ -200,14 +200,14 @@ fn main() {
 
             if debugging {
                 drawing_camera.draw_line_ex(
-                    Vector2::new(camera.target.x, (-screen_height * 10) as f32),
-                    Vector2::new(camera.target.x, (screen_height * 10) as f32),
+                    rvec2(camera.target.x, (-screen_height * 10) as f32),
+                    rvec2(camera.target.x, (screen_height * 10) as f32),
                     5.0,
                     Color::PURPLE,
                 );
                 drawing_camera.draw_line_ex(
-                    Vector2::new((-screen_width * 10) as f32, camera.target.y),
-                    Vector2::new((screen_width * 10) as f32, camera.target.y),
+                    rvec2((-screen_width * 10) as f32, camera.target.y),
+                    rvec2((screen_width * 10) as f32, camera.target.y),
                     5.0,
                     Color::PURPLE,
                 );
