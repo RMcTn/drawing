@@ -81,6 +81,9 @@ fn main() {
     while !rl.window_should_close() {
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
+        // TODO(reece): Improve how the lines look. Make a line renderer or something?
+        // TODO(reece): BUG: Brush marker looks like it's a bit off centre from the mouse cursor
+        // TODO(reece): Use shaders for line drawing?
         //
         // TODO(reece): Saving/loading?
         // TODO(reece): Installable so it's searchable as a program
