@@ -158,6 +158,14 @@ fn main() {
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
             apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut camera);
         }
+        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
+            delete_stroke(
+                &mut strokes,
+                &mut stroke_graveyard,
+                &drawing_pos,
+                brush.brush_size,
+            );
+        }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             // Drawing
             if !is_drawing {
@@ -261,9 +269,7 @@ fn main() {
         }
 
         let elapsed = start_time.elapsed();
-        // dbg!(elapsed);
         let time_to_sleep = duration_per_frame - elapsed;
-        // dbg!(time_to_sleep);
         thread::sleep(time_to_sleep);
     }
 }
@@ -338,5 +344,49 @@ fn clamp_camera_zoom(camera: &mut Camera2D) {
 fn clamp_brush_size(brush: &mut Brush) {
     if brush.brush_size < 1.0 {
         brush.brush_size = 1.0;
+    }
+}
+
+fn delete_stroke(
+    strokes: &mut Vec<Stroke>,
+    stroke_graveyard: &mut Vec<Stroke>,
+    mouse_point: &Vector2,
+    brush_size: f32,
+) {
+    // @SPEEDUP: Can we do anything smarter than looping through every single stroke + point when
+    // trying to delete?
+    for i in 0..strokes.len() {
+        let stroke = &mut strokes[i];
+
+        for j in 0..stroke.points.len() {
+            let point = &stroke.points[j];
+            // @BUG: Still some weirdness when it comes to deleting small lines it feels like
+            if check_collision_circles(
+                Vector2 {
+                    x: point.x,
+                    y: point.y,
+                },
+                stroke.brush_size / 2.0,
+                mouse_point,
+                brush_size / 2.0,
+            ) {
+                // @SPEEDUP: The whole vec is being shifted by this remove. We should either use
+                // Option for strokes, or swap out an "empty" stroke in place of the stroke we're
+                // removing.
+                // @BUG: Problem with swapping an empty stroke is it'll be picked up in the
+                // undo/redo cycle
+                // After benchmarking rust options, it seems there isn't a performance penalty
+                // using them, so just use options in the stroke vec
+                // let stand_in_stroke = Stroke {
+                //     points: vec![],
+                //     brush_size: 0.0,
+                //     color: Color::BLACK,
+                // };
+                // stroke_graveyard.push(std::mem::replace(stroke, stand_in_stroke));
+                let stroke = strokes.remove(i);
+                stroke_graveyard.push(stroke);
+                return;
+            }
+        }
     }
 }
