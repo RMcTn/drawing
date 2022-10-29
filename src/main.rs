@@ -30,6 +30,8 @@ impl Stroke {
     }
 }
 
+type Strokes = Vec<Option<Stroke>>;
+
 struct Brush {
     brush_type: BrushType,
     brush_size: f32,
@@ -67,7 +69,7 @@ fn main() {
 
     let initial_brush_size = 10.0;
 
-    let mut strokes: Vec<Stroke> = Vec::with_capacity(10);
+    let mut strokes: Strokes = Vec::with_capacity(10);
     let mut stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
@@ -189,7 +191,7 @@ fn main() {
         if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
             // Finished drawing
             if is_drawing {
-                strokes.push(working_stroke);
+                strokes.push(Some(working_stroke));
                 working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
             }
             is_drawing = false;
@@ -216,7 +218,9 @@ fn main() {
 
             drawing_camera.clear_background(Color::WHITE);
             for line in &strokes {
-                draw_stroke(&mut drawing_camera, &line, line.brush_size);
+                if let Some(line) = line {
+                    draw_stroke(&mut drawing_camera, &line, line.brush_size);
+                }
             }
 
             // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
@@ -305,17 +309,27 @@ fn apply_mouse_drag_to_camera(mouse_pos: Vector2, last_mouse_pos: Vector2, camer
     camera.target.y -= mouse_diff.y / camera.zoom;
 }
 
-fn undo_stroke(strokes: &mut Vec<Stroke>, stroke_graveyard: &mut Vec<Stroke>) {
-    match strokes.pop() {
-        None => {} // Nothing to undo
-        Some(undone_stroke) => stroke_graveyard.push(undone_stroke),
+fn undo_stroke(strokes: &mut Strokes, stroke_graveyard: &mut Vec<Stroke>) {
+    // @NOTE: This will pop None's off the strokes until we find a Some
+    loop {
+        if let Some(undone_stroke) = strokes.pop() {
+            if let Some(stroke) = undone_stroke {
+                stroke_graveyard.push(stroke);
+                return;
+            } else {
+                continue;
+            }
+        } else {
+            break;
+        }
     }
 }
 
-fn redo_stroke(strokes: &mut Vec<Stroke>, stroke_graveyard: &mut Vec<Stroke>) {
+fn redo_stroke(strokes: &mut Strokes, stroke_graveyard: &mut Vec<Stroke>) {
+    // @TODO This can't be a pop since the last stroke could be None. Could loop and pop
     match stroke_graveyard.pop() {
         None => {} // Nothing to undo
-        Some(redone_stroke) => strokes.push(redone_stroke),
+        Some(redone_stroke) => strokes.push(Some(redone_stroke)),
     }
 }
 
@@ -348,7 +362,7 @@ fn clamp_brush_size(brush: &mut Brush) {
 }
 
 fn delete_stroke(
-    strokes: &mut Vec<Stroke>,
+    strokes: &mut Strokes,
     stroke_graveyard: &mut Vec<Stroke>,
     mouse_point: &Vector2,
     brush_size: f32,
@@ -358,34 +372,23 @@ fn delete_stroke(
     for i in 0..strokes.len() {
         let stroke = &mut strokes[i];
 
-        for j in 0..stroke.points.len() {
-            let point = &stroke.points[j];
-            // @BUG: Still some weirdness when it comes to deleting small lines it feels like
-            if check_collision_circles(
-                Vector2 {
-                    x: point.x,
-                    y: point.y,
-                },
-                stroke.brush_size / 2.0,
-                mouse_point,
-                brush_size / 2.0,
-            ) {
-                // @SPEEDUP: The whole vec is being shifted by this remove. We should either use
-                // Option for strokes, or swap out an "empty" stroke in place of the stroke we're
-                // removing.
-                // @BUG: Problem with swapping an empty stroke is it'll be picked up in the
-                // undo/redo cycle
-                // After benchmarking rust options, it seems there isn't a performance penalty
-                // using them, so just use options in the stroke vec
-                // let stand_in_stroke = Stroke {
-                //     points: vec![],
-                //     brush_size: 0.0,
-                //     color: Color::BLACK,
-                // };
-                // stroke_graveyard.push(std::mem::replace(stroke, stand_in_stroke));
-                let stroke = strokes.remove(i);
-                stroke_graveyard.push(stroke);
-                return;
+        if let Some(stroke_item) = stroke {
+            for j in 0..stroke_item.points.len() {
+                let point = &stroke_item.points[j];
+                // @BUG: Still some weirdness when it comes to deleting small lines it feels like
+                if check_collision_circles(
+                    Vector2 {
+                        x: point.x,
+                        y: point.y,
+                    },
+                    stroke_item.brush_size / 2.0,
+                    mouse_point,
+                    brush_size / 2.0,
+                ) {
+                    let deleted_stroke = std::mem::replace(stroke, None).unwrap(); // Pretty sure this can't panic because of the `if let` above
+                    stroke_graveyard.push(deleted_stroke);
+                    return;
+                }
             }
         }
     }
