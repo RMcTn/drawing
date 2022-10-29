@@ -81,8 +81,8 @@ fn main() {
     let mut last_mouse_pos = rl.get_mouse_position();
 
     while !rl.window_should_close() {
+        let current_fps = rl.get_fps();
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
-        // TODO(reece): Delete a brush stroke with one action
         // "top left corner"
         // TODO(reece): Improve how the lines look. Make a line renderer or something?
         // TODO(reece): BUG: Brush marker looks like it's a bit off centre from the mouse cursor
@@ -145,8 +145,25 @@ fn main() {
         if rl.is_key_pressed(KeyboardKey::KEY_RIGHT_BRACKET) {
             brush.brush_size += 5.0;
         }
-        if rl.is_key_pressed(KeyboardKey::KEY_H) {
+        if rl.is_key_down(KeyboardKey::KEY_H) {
             // Create bunch of strokes with random coords in screen space for benchmark testing
+            // @SPEEDUP Allow passed in number of points to allocate to new Stroke
+
+            for _ in 0..50 {
+                let initial_x: i32 = get_random_value(0, screen_width);
+                let initial_y: i32 = get_random_value(0, screen_height);
+                let generated_points: Vec<Point> = (1..10)
+                    .map(|n| Point {
+                        x: (initial_x + n) as f32,
+                        y: (initial_y + n) as f32,
+                    })
+                    .collect();
+
+                let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
+                generated_stroke.points = generated_points;
+
+                strokes.push(Some(generated_stroke));
+            }
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_P) {
@@ -270,11 +287,18 @@ fn main() {
             drawing.draw_text(&target_str, 5, 90, 30, Color::RED);
             let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
             drawing.draw_text(&drawing_pos_str, 5, 120, 30, Color::RED);
+            let number_of_strokes_str = format!("Total strokes: {}", strokes.len());
+            drawing.draw_text(&number_of_strokes_str, 5, 150, 30, Color::RED);
+            let fps_str = format!("FPS: {}", current_fps);
+
+            drawing.draw_text(&fps_str, 5, 180, 30, Color::RED);
         }
 
         let elapsed = start_time.elapsed();
-        let time_to_sleep = duration_per_frame - elapsed;
-        thread::sleep(time_to_sleep);
+        if elapsed < duration_per_frame {
+            let time_to_sleep = duration_per_frame - elapsed;
+            thread::sleep(time_to_sleep);
+        }
     }
 }
 
@@ -298,7 +322,7 @@ fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke, br
         // We're drawing the line + circle here just cause it looks a bit better (circle hides the blockiness of the line)
         drawing.draw_line_ex(first_vec, last_vec, brush_size, stroke.color);
         // Half the brush size here since draw call wants radius
-        drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color);
+        drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color); // @SPEEDUP This is slow as fuck
     }
 }
 
