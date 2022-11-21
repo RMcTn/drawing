@@ -411,7 +411,7 @@ fn delete_stroke(
                 ) {
                     let deleted_stroke = std::mem::replace(stroke, None).unwrap(); // Pretty sure this can't panic because of the `if let` above
                     stroke_graveyard.push(deleted_stroke);
-                    return;
+                    break;
                 }
             }
         }
