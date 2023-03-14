@@ -37,9 +37,15 @@ struct Brush {
     brush_size: f32,
 }
 
+#[derive(PartialEq)]
 enum BrushType {
     Drawing,
+    // TODO(reece): Does it make sense any more to have erasing and deleting being different
+    // things? Is erasing really useful?
+    // Erasing here being just using the background colour (or white at the moment) to paint,
+    // whereas Deleting is really delete it
     Erasing,
+    Deleting,
 }
 
 fn main() {
@@ -131,6 +137,10 @@ fn main() {
             brush.brush_type = BrushType::Erasing;
         }
 
+        if rl.is_key_pressed(KeyboardKey::KEY_T) {
+            brush.brush_type = BrushType::Deleting;
+        }
+
         if rl.is_key_pressed(KeyboardKey::KEY_Q) {
             brush.brush_type = BrushType::Drawing;
         }
@@ -186,24 +196,34 @@ fn main() {
             );
         }
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-            // Drawing
-            if !is_drawing {
-                let brush_color = match &brush.brush_type {
-                    // TODO(reece): Will want these colours to be dynamic (whatever user
-                    // picked (drawing)/whatever bg colour is (erasing))
-                    BrushType::Drawing => Color::BLACK,
-                    BrushType::Erasing => Color::WHITE,
+            if brush.brush_type == BrushType::Deleting {
+                delete_stroke(
+                    &mut strokes,
+                    &mut stroke_graveyard,
+                    &drawing_pos,
+                    brush.brush_size,
+                )
+            } else {
+                // Drawing
+                if !is_drawing {
+                    let brush_color = match &brush.brush_type {
+                        // TODO(reece): Will want these colours to be dynamic (whatever user
+                        // picked (drawing)/whatever bg colour is (erasing))
+                        BrushType::Drawing => Color::BLACK,
+                        BrushType::Erasing => Color::WHITE,
+                        BrushType::Deleting => Color::RED,
+                    };
+
+                    working_stroke = Stroke::new(brush_color, brush.brush_size);
+                    is_drawing = true;
+                }
+
+                let point = Point {
+                    x: drawing_pos.x,
+                    y: drawing_pos.y,
                 };
-
-                working_stroke = Stroke::new(brush_color, brush.brush_size);
-                is_drawing = true;
+                working_stroke.points.push(point);
             }
-
-            let point = Point {
-                x: drawing_pos.x,
-                y: drawing_pos.y,
-            };
-            working_stroke.points.push(point);
         }
         if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
             // Finished drawing
@@ -275,6 +295,7 @@ fn main() {
         let brush_type_str = match &brush.brush_type {
             BrushType::Drawing => "Drawing",
             BrushType::Erasing => "Erasing",
+            BrushType::Deleting => "Deleting",
         };
         let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
         let zoom_str = format!("Zoom: {}", camera.zoom.to_string());
