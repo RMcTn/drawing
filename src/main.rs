@@ -1,4 +1,7 @@
 use std::{
+    fmt::{format, Display},
+    fs::File,
+    io::{self, BufRead, Write},
     thread,
     time::{self, Instant},
 };
@@ -9,6 +12,13 @@ use raylib::prelude::{Vector2, *};
 struct Point {
     x: f32,
     y: f32,
+}
+
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let display_str = format!("{},{}", self.x, self.y);
+        f.write_str(&display_str)
+    }
 }
 
 struct Stroke {
@@ -31,6 +41,151 @@ impl Stroke {
 }
 
 type Strokes = Vec<Option<Stroke>>;
+
+enum ParsingMode {
+    Start,
+    Stroke,
+    AfterStroke,
+}
+
+fn chomp_trailing_empty_lines(lines: &mut Vec<&str>) {
+    let mut lines_to_keep = lines.len();
+    for line in lines.iter().rev() {
+        if line.is_empty() {
+            lines_to_keep -= 1;
+        } else {
+            break;
+        }
+    }
+    lines.truncate(lines_to_keep);
+}
+
+fn read_from_file() -> Result<Strokes, std::io::Error> {
+    // TODO(reece): What to do when parsing fails?
+    // TODO(reece): Read in stroke_graveyard
+    let contents = std::fs::read_to_string("strokes.txt")?;
+    let mut lines: Vec<&str> = contents.split('\n').collect();
+
+    chomp_trailing_empty_lines(&mut lines);
+
+    let mut strokes = Strokes::new();
+    let mut parsing_mode = ParsingMode::Start;
+
+    let mut current_line_idx = 0;
+
+    while current_line_idx < lines.len() {
+        let current_line = lines[current_line_idx];
+        match parsing_mode {
+            ParsingMode::Start => {
+                if current_line == "strokes" {
+                    parsing_mode = ParsingMode::Stroke;
+                    current_line_idx += 1;
+                    continue;
+                } else {
+                    let error_msg = format!("Wasn't expecting {} whilst parsing", current_line);
+                    eprintln!("{}", error_msg);
+                    return Err(io::Error::new(io::ErrorKind::Other, error_msg));
+                }
+            }
+            ParsingMode::AfterStroke => {
+                if current_line.trim().is_empty() {
+                    parsing_mode = ParsingMode::Stroke;
+                    current_line_idx += 1;
+                    continue;
+                } else {
+                    let error_msg =
+                        format!("Wasn't expecting {} after parsing a Stroke", current_line);
+                    eprintln!("{}", error_msg);
+                    return Err(io::Error::new(io::ErrorKind::Other, error_msg));
+                }
+            }
+            ParsingMode::Stroke => {
+                let brush_size = current_line.parse().unwrap();
+                current_line_idx += 1;
+
+                let rgba_splits: Vec<&str> = lines[current_line_idx].split_whitespace().collect();
+                if rgba_splits.len() != 4 {
+                    // TODO(reece) proper error handling here
+                    let error_msg = format!("Was expecting 4 values at line {}", current_line_idx);
+                    eprintln!("{}", error_msg);
+                    return Err(io::Error::new(io::ErrorKind::Other, error_msg));
+                }
+
+                let r = rgba_splits.get(0).unwrap().parse().unwrap();
+                let g = rgba_splits.get(1).unwrap().parse().unwrap();
+                let b = rgba_splits.get(2).unwrap().parse().unwrap();
+                let a = rgba_splits.get(3).unwrap().parse().unwrap();
+
+                let color = Color { r, g, b, a };
+                current_line_idx += 1;
+
+                let points_to_parse: usize = lines[current_line_idx].parse().unwrap();
+                current_line_idx += 1;
+
+                let mut points = Vec::with_capacity(points_to_parse);
+
+                for _ in current_line_idx..points_to_parse + current_line_idx {
+                    let line = lines[current_line_idx];
+
+                    let split: Vec<&str> = line.split(",").collect();
+                    if split.len() != 2 {
+                        // TODO(reece) proper error handling here
+                        let error_msg =
+                            format!("Was expecting only 2 points at line {}", current_line_idx);
+                        eprintln!("{}", error_msg);
+                        return Err(io::Error::new(io::ErrorKind::Other, error_msg));
+                    }
+                    let x = split.first().unwrap().parse().unwrap();
+                    let y = split.last().unwrap().parse().unwrap();
+                    let point = Point { x, y };
+                    points.push(point);
+                    current_line_idx += 1;
+                }
+
+                let stroke = Stroke {
+                    brush_size,
+                    color,
+                    points,
+                };
+                strokes.push(Some(stroke));
+                parsing_mode = ParsingMode::AfterStroke;
+            }
+        }
+    }
+
+    return Ok(strokes);
+}
+
+fn write_to_file(strokes: &Strokes, stroke_graveyard: &Vec<Stroke>) -> Result<(), std::io::Error> {
+    // Could have used serde, but learning is fun (:
+
+    // TODO(reece): Do we want to do file versions as well? Not to concerned considering this is
+    // just a personal program
+    let mut file = File::create("strokes.txt")?;
+
+    writeln!(file, "strokes")?;
+    for stroke in strokes {
+        if stroke.is_none() {
+            continue;
+        }
+
+        let stroke = stroke.as_ref().unwrap();
+        writeln!(file, "{}", stroke.brush_size)?;
+        writeln!(
+            file,
+            "{} {} {} {}",
+            stroke.color.r, stroke.color.g, stroke.color.b, stroke.color.a
+        )?;
+        writeln!(file, "{}", stroke.points.len())?;
+        for point in &stroke.points {
+            writeln!(file, "{}", point)?;
+        }
+
+        writeln!(file, "")?;
+    }
+    // TODO(reece): Write out stroke_graveyard
+    Ok(())
+}
 
 struct Brush {
     brush_type: BrushType,
@@ -122,6 +277,14 @@ fn main() {
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
             camera.target.y -= 5.0;
+        }
+
+        if rl.is_key_down(KeyboardKey::KEY_O) {
+            write_to_file(&strokes, &stroke_graveyard).unwrap();
+        }
+
+        if rl.is_key_down(KeyboardKey::KEY_P) {
+            strokes = read_from_file().unwrap();
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
