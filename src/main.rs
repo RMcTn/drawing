@@ -7,8 +7,12 @@ use std::{
 };
 
 use raylib::prelude::{Vector2, *};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
-#[derive(Debug)]
+const SAVE_FILENAME: &'static str = "strokes_json.txt";
+
+#[derive(Debug, Deserialize, Serialize)]
 struct Point {
     x: f32,
     y: f32,
@@ -21,6 +25,7 @@ impl Display for Point {
     }
 }
 
+#[derive(Deserialize, Serialize)]
 struct Stroke {
     points: Vec<Point>,
     color: Color,
@@ -60,131 +65,22 @@ fn chomp_trailing_empty_lines(lines: &mut Vec<&str>) {
     lines.truncate(lines_to_keep);
 }
 
-fn read_from_file() -> Result<Strokes, std::io::Error> {
-    // TODO(reece): What to do when parsing fails?
-    // TODO(reece): Read in stroke_graveyard
-    let contents = std::fs::read_to_string("strokes.txt")?;
-    let mut lines: Vec<&str> = contents.split('\n').collect();
-
-    chomp_trailing_empty_lines(&mut lines);
-
-    let mut strokes = Strokes::new();
-    let mut parsing_mode = ParsingMode::Start;
-
-    let mut current_line_idx = 0;
-
-    while current_line_idx < lines.len() {
-        let current_line = lines[current_line_idx];
-        match parsing_mode {
-            ParsingMode::Start => {
-                if current_line == "strokes" {
-                    parsing_mode = ParsingMode::Stroke;
-                    current_line_idx += 1;
-                    continue;
-                } else {
-                    let error_msg = format!("Wasn't expecting {} whilst parsing", current_line);
-                    eprintln!("{}", error_msg);
-                    return Err(io::Error::new(io::ErrorKind::Other, error_msg));
-                }
-            }
-            ParsingMode::AfterStroke => {
-                if current_line.trim().is_empty() {
-                    parsing_mode = ParsingMode::Stroke;
-                    current_line_idx += 1;
-                    continue;
-                } else {
-                    let error_msg =
-                        format!("Wasn't expecting {} after parsing a Stroke", current_line);
-                    eprintln!("{}", error_msg);
-                    return Err(io::Error::new(io::ErrorKind::Other, error_msg));
-                }
-            }
-            ParsingMode::Stroke => {
-                let brush_size = current_line.parse().unwrap();
-                current_line_idx += 1;
-
-                let rgba_splits: Vec<&str> = lines[current_line_idx].split_whitespace().collect();
-                if rgba_splits.len() != 4 {
-                    // TODO(reece) proper error handling here
-                    let error_msg = format!("Was expecting 4 values at line {}", current_line_idx);
-                    eprintln!("{}", error_msg);
-                    return Err(io::Error::new(io::ErrorKind::Other, error_msg));
-                }
-
-                let r = rgba_splits.get(0).unwrap().parse().unwrap();
-                let g = rgba_splits.get(1).unwrap().parse().unwrap();
-                let b = rgba_splits.get(2).unwrap().parse().unwrap();
-                let a = rgba_splits.get(3).unwrap().parse().unwrap();
-
-                let color = Color { r, g, b, a };
-                current_line_idx += 1;
-
-                let points_to_parse: usize = lines[current_line_idx].parse().unwrap();
-                current_line_idx += 1;
-
-                let mut points = Vec::with_capacity(points_to_parse);
-
-                for _ in current_line_idx..points_to_parse + current_line_idx {
-                    let line = lines[current_line_idx];
-
-                    let split: Vec<&str> = line.split(",").collect();
-                    if split.len() != 2 {
-                        // TODO(reece) proper error handling here
-                        let error_msg =
-                            format!("Was expecting only 2 points at line {}", current_line_idx);
-                        eprintln!("{}", error_msg);
-                        return Err(io::Error::new(io::ErrorKind::Other, error_msg));
-                    }
-                    let x = split.first().unwrap().parse().unwrap();
-                    let y = split.last().unwrap().parse().unwrap();
-                    let point = Point { x, y };
-                    points.push(point);
-                    current_line_idx += 1;
-                }
-
-                let stroke = Stroke {
-                    brush_size,
-                    color,
-                    points,
-                };
-                strokes.push(Some(stroke));
-                parsing_mode = ParsingMode::AfterStroke;
-            }
-        }
-    }
-
-    return Ok(strokes);
+#[derive(Deserialize, Serialize)]
+struct State {
+    strokes: Strokes,
 }
 
-fn write_to_file(strokes: &Strokes, stroke_graveyard: &Vec<Stroke>) -> Result<(), std::io::Error> {
-    // Could have used serde, but learning is fun (:
-
-    // TODO(reece): Do we want to do file versions as well? Not to concerned considering this is
-    // just a personal program
-    let mut file = File::create("strokes.txt")?;
-
-    writeln!(file, "strokes")?;
-    for stroke in strokes {
-        if stroke.is_none() {
-            continue;
-        }
-
-        let stroke = stroke.as_ref().unwrap();
-        writeln!(file, "{}", stroke.brush_size)?;
-        writeln!(
-            file,
-            "{} {} {} {}",
-            stroke.color.r, stroke.color.g, stroke.color.b, stroke.color.a
-        )?;
-        writeln!(file, "{}", stroke.points.len())?;
-        for point in &stroke.points {
-            writeln!(file, "{}", point)?;
-        }
-
-        writeln!(file, "")?;
-    }
-    // TODO(reece): Write out stroke_graveyard
+fn save(state: &State, stroke_graveyard: &Vec<Stroke>) -> Result<(), std::io::Error> {
+    let output = serde_json::to_string(&state)?;
+    let mut file = File::create(SAVE_FILENAME)?;
+    file.write_all(output.as_bytes())?;
     Ok(())
+}
+
+fn load() -> Result<State, std::io::Error> {
+    let contents = std::fs::read_to_string(SAVE_FILENAME)?;
+    let state: State = serde_json::from_str(&contents)?;
+    return Ok(state);
 }
 
 struct Brush {
@@ -236,6 +132,7 @@ fn main() {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
     };
+    let mut state = State { strokes };
 
     let mut is_drawing = false;
     let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
@@ -280,18 +177,18 @@ fn main() {
         }
 
         if rl.is_key_down(KeyboardKey::KEY_O) {
-            write_to_file(&strokes, &stroke_graveyard).unwrap();
+            save(&state, &stroke_graveyard).unwrap();
         }
 
         if rl.is_key_down(KeyboardKey::KEY_P) {
-            strokes = read_from_file().unwrap();
+            state = load().unwrap();
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
-            undo_stroke(&mut strokes, &mut stroke_graveyard);
+            undo_stroke(&mut state.strokes, &mut stroke_graveyard);
         }
         if rl.is_key_pressed(KeyboardKey::KEY_R) {
-            redo_stroke(&mut strokes, &mut stroke_graveyard);
+            redo_stroke(&mut state.strokes, &mut stroke_graveyard);
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_E) {
@@ -335,7 +232,7 @@ fn main() {
                 let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
                 generated_stroke.points = generated_points;
 
-                strokes.push(Some(generated_stroke));
+                state.strokes.push(Some(generated_stroke));
             }
         }
 
@@ -352,7 +249,7 @@ fn main() {
         }
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
             delete_stroke(
-                &mut strokes,
+                &mut state.strokes,
                 &mut stroke_graveyard,
                 &drawing_pos,
                 brush.brush_size,
@@ -361,7 +258,7 @@ fn main() {
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
             if brush.brush_type == BrushType::Deleting {
                 delete_stroke(
-                    &mut strokes,
+                    &mut state.strokes,
                     &mut stroke_graveyard,
                     &drawing_pos,
                     brush.brush_size,
@@ -391,7 +288,7 @@ fn main() {
         if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
             // Finished drawing
             if is_drawing {
-                strokes.push(Some(working_stroke));
+                state.strokes.push(Some(working_stroke));
                 working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
             }
             is_drawing = false;
@@ -417,7 +314,7 @@ fn main() {
             let mut drawing_camera = drawing.begin_mode2D(camera);
 
             drawing_camera.clear_background(Color::WHITE);
-            for line in &strokes {
+            for line in &state.strokes {
                 if let Some(line) = line {
                     draw_stroke(&mut drawing_camera, &line, line.brush_size);
                 }
@@ -471,7 +368,7 @@ fn main() {
             drawing.draw_text(&target_str, 5, 90, 30, Color::RED);
             let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
             drawing.draw_text(&drawing_pos_str, 5, 120, 30, Color::RED);
-            let number_of_strokes_str = format!("Total strokes: {}", strokes.len());
+            let number_of_strokes_str = format!("Total strokes: {}", state.strokes.len());
             drawing.draw_text(&number_of_strokes_str, 5, 150, 30, Color::RED);
             let fps_str = format!("FPS: {}", current_fps);
 
