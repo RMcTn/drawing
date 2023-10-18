@@ -68,15 +68,15 @@ fn load() -> Result<State, std::io::Error> {
     return Ok(state);
 }
 
-type CameraZoomPercentageDiff = i64;
+type CameraZoomPercentageDiff = i32;
 #[derive(PartialEq, Eq, Hash)]
 enum Command {
     Save,
     Load,
     ChangeBrushType(BrushType),
     ToggleDebugging,
-    PanCameraHorizontal(i64),
-    PanCameraVertical(i64),
+    PanCameraHorizontal(i32),
+    PanCameraVertical(i32),
     Undo,
     Redo,
     ChangeBrushSize(CameraZoomPercentageDiff),
@@ -181,6 +181,23 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
+        let mut keys_pressed = vec![];
+        while let Some(pressed_key) = rl.get_key_pressed() {
+            keys_pressed.push(pressed_key);
+        }
+        for pressed_key in keys_pressed {
+            if let Some(command) = keymap.get(&pressed_key) {
+                match command {
+                    Command::CameraZoom(percentage_diff) => {
+                        // NOTE: There will be rounding errors here, but we can format the zoom
+                        // string
+                        camera.zoom += *percentage_diff as f32 / 100.0;
+                    }
+                    _ => todo!(),
+                }
+            }
+        }
+
         if rl.is_key_pressed(KeyboardKey::KEY_M) {
             debugging = !debugging;
         }
@@ -252,14 +269,6 @@ fn main() {
 
                 state.strokes.push(Some(generated_stroke));
             }
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_P) {
-            camera.zoom += 0.05;
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_L) {
-            camera.zoom -= 0.05;
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
@@ -374,7 +383,7 @@ fn main() {
             BrushType::Deleting => "Deleting",
         };
         let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
-        let zoom_str = format!("Zoom: {}", camera.zoom.to_string());
+        let zoom_str = format!("Zoom: {:.2}", camera.zoom);
         drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
         drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
