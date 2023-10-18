@@ -1,7 +1,7 @@
 use std::{
-    fmt::{format, Display},
+    fmt::Display,
     fs::File,
-    io::{self, BufRead, Write},
+    io::Write,
     thread,
     time::{self, Instant},
 };
@@ -45,24 +45,6 @@ impl Stroke {
 }
 
 type Strokes = Vec<Option<Stroke>>;
-
-enum ParsingMode {
-    Start,
-    Stroke,
-    AfterStroke,
-}
-
-fn chomp_trailing_empty_lines(lines: &mut Vec<&str>) {
-    let mut lines_to_keep = lines.len();
-    for line in lines.iter().rev() {
-        if line.is_empty() {
-            lines_to_keep -= 1;
-        } else {
-            break;
-        }
-    }
-    lines.truncate(lines_to_keep);
-}
 
 #[derive(Deserialize, Serialize)]
 struct State {
@@ -128,8 +110,8 @@ fn main() {
 
     let initial_brush_size = 10.0;
 
-    let mut strokes: Strokes = Vec::with_capacity(10);
-    let mut stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
+    let strokes: Strokes = Vec::with_capacity(10);
+    let stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
