@@ -8,7 +8,6 @@ use std::{
 
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 const SAVE_FILENAME: &'static str = "strokes_json.txt";
 
@@ -68,9 +67,12 @@ fn chomp_trailing_empty_lines(lines: &mut Vec<&str>) {
 #[derive(Deserialize, Serialize)]
 struct State {
     strokes: Strokes,
+    stroke_graveyard: Vec<Stroke>,
 }
 
-fn save(state: &State, stroke_graveyard: &Vec<Stroke>) -> Result<(), std::io::Error> {
+fn save(state: &State) -> Result<(), std::io::Error> {
+    // TODO: FIXME: There's no versioning for save files at the moment
+    // so anything new isn't backwards compatible
     let output = serde_json::to_string(&state)?;
     let mut file = File::create(SAVE_FILENAME)?;
     file.write_all(output.as_bytes())?;
@@ -132,7 +134,10 @@ fn main() {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
     };
-    let mut state = State { strokes };
+    let mut state = State {
+        strokes,
+        stroke_graveyard,
+    };
 
     let mut is_drawing = false;
     let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
@@ -177,7 +182,7 @@ fn main() {
         }
 
         if rl.is_key_down(KeyboardKey::KEY_O) {
-            save(&state, &stroke_graveyard).unwrap();
+            save(&state).unwrap();
         }
 
         if rl.is_key_down(KeyboardKey::KEY_P) {
@@ -185,10 +190,10 @@ fn main() {
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
-            undo_stroke(&mut state.strokes, &mut stroke_graveyard);
+            undo_stroke(&mut state.strokes, &mut state.stroke_graveyard);
         }
         if rl.is_key_pressed(KeyboardKey::KEY_R) {
-            redo_stroke(&mut state.strokes, &mut stroke_graveyard);
+            redo_stroke(&mut state.strokes, &mut state.stroke_graveyard);
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_E) {
@@ -250,7 +255,7 @@ fn main() {
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
             delete_stroke(
                 &mut state.strokes,
-                &mut stroke_graveyard,
+                &mut state.stroke_graveyard,
                 &drawing_pos,
                 brush.brush_size,
             );
@@ -259,7 +264,7 @@ fn main() {
             if brush.brush_type == BrushType::Deleting {
                 delete_stroke(
                     &mut state.strokes,
-                    &mut stroke_graveyard,
+                    &mut state.stroke_graveyard,
                     &drawing_pos,
                     brush.brush_size,
                 )
