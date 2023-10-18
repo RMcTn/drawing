@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs::File,
     io::Write,
@@ -67,18 +68,56 @@ fn load() -> Result<State, std::io::Error> {
     return Ok(state);
 }
 
+type CameraZoomPercentageDiff = i64;
+#[derive(PartialEq, Eq, Hash)]
+enum Command {
+    Save,
+    Load,
+    ChangeBrushType(BrushType),
+    ToggleDebugging,
+    PanCameraHorizontal(i64),
+    PanCameraVertical(i64),
+    Undo,
+    Redo,
+    ChangeBrushSize(CameraZoomPercentageDiff),
+    CameraZoom(CameraZoomPercentageDiff),
+}
+
+type Keymap = HashMap<KeyboardKey, Command>;
+
+fn default_keymap() -> Keymap {
+    return Keymap::from([
+        // (KeyboardKey::KEY_M, Command::Save),
+        // (KeyboardKey::KEY_A, Command::Save),
+        // (KeyboardKey::KEY_D, Command::Save),
+        // (KeyboardKey::KEY_S, Command::Save),
+        // (KeyboardKey::KEY_W, Command::Save),
+        // (KeyboardKey::KEY_O, Command::Save),
+        // (KeyboardKey::KEY_P, Command::Save),
+        // (KeyboardKey::KEY_Z, Command::Save),
+        // (KeyboardKey::KEY_R, Command::Save),
+        // (KeyboardKey::KEY_E, Command::Save),
+        // (KeyboardKey::KEY_Q, Command::Save),
+        // (KeyboardKey::KEY_LEFT_BRACKET, Command::Save),
+        // (KeyboardKey::KEY_RIGHT_BRACKET, Command::Save),
+        (KeyboardKey::KEY_L, Command::CameraZoom(-5)),
+        (KeyboardKey::KEY_K, Command::CameraZoom(5)),
+    ]);
+}
+
 struct Brush {
     brush_type: BrushType,
     brush_size: f32,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Hash)]
 enum BrushType {
     Drawing,
     Deleting,
 }
 
 fn main() {
+    let keymap = default_keymap();
     let mut debugging = false;
 
     let mut screen_width = 1280;
