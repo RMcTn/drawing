@@ -75,11 +75,6 @@ struct Brush {
 #[derive(PartialEq)]
 enum BrushType {
     Drawing,
-    // TODO(reece): Does it make sense any more to have erasing and deleting being different
-    // things? Is erasing really useful?
-    // Erasing here being just using the background colour (or white at the moment) to paint,
-    // whereas Deleting is really delete it
-    Erasing,
     Deleting,
 }
 
@@ -127,6 +122,7 @@ fn main() {
 
     while !rl.window_should_close() {
         let current_fps = rl.get_fps();
+        // TODO: Hotkey configuration
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
         // TODO(reece): Improve how the lines look. Make a line renderer or something?
@@ -179,16 +175,12 @@ fn main() {
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_E) {
-            // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
-            // the working stroke off when changing brush type
-            brush.brush_type = BrushType::Erasing;
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_T) {
             brush.brush_type = BrushType::Deleting;
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Q) {
+            // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
+            // the working stroke off when changing brush type
             brush.brush_type = BrushType::Drawing;
         }
 
@@ -257,7 +249,6 @@ fn main() {
                         // TODO(reece): Will want these colours to be dynamic (whatever user
                         // picked (drawing)/whatever bg colour is (erasing))
                         BrushType::Drawing => Color::BLACK,
-                        BrushType::Erasing => Color::WHITE,
                         BrushType::Deleting => Color::RED,
                     };
 
@@ -341,7 +332,6 @@ fn main() {
 
         let brush_type_str = match &brush.brush_type {
             BrushType::Drawing => "Drawing",
-            BrushType::Erasing => "Erasing",
             BrushType::Deleting => "Deleting",
         };
         let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
