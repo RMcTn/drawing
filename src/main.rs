@@ -87,7 +87,7 @@ type Keymap = HashMap<KeyboardKey, Command>;
 
 fn default_keymap() -> Keymap {
     return Keymap::from([
-        // (KeyboardKey::KEY_M, Command::Save),
+        (KeyboardKey::KEY_M, Command::ToggleDebugging),
         // (KeyboardKey::KEY_A, Command::Save),
         // (KeyboardKey::KEY_D, Command::Save),
         // (KeyboardKey::KEY_S, Command::Save),
@@ -193,13 +193,10 @@ fn main() {
                         // string
                         camera.zoom += *percentage_diff as f32 / 100.0;
                     }
+                    Command::ToggleDebugging => debugging = !debugging,
                     _ => todo!(),
                 }
             }
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_M) {
-            debugging = !debugging;
         }
 
         if rl.is_key_down(KeyboardKey::KEY_A) {
