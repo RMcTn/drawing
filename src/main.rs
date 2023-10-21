@@ -69,7 +69,7 @@ fn load() -> Result<State, std::io::Error> {
 }
 
 type CameraZoomPercentageDiff = i32;
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum Command {
     Save,
     Load,
@@ -83,11 +83,16 @@ enum Command {
     CameraZoom(CameraZoomPercentageDiff),
 }
 
-type Keymap = HashMap<KeyboardKey, Command>;
+type KeyMappings = HashMap<KeyboardKey, Command>;
+
+struct Keymap {
+    on_press: KeyMappings,
+    on_hold: KeyMappings,
+}
 
 fn default_keymap() -> Keymap {
-    return Keymap::from([
-        (KeyboardKey::KEY_M, Command::ToggleDebugging),
+    let on_press = KeyMappings::from([(KeyboardKey::KEY_M, Command::ToggleDebugging)]);
+    let on_hold = KeyMappings::from([
         (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-5)),
         (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
         (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
@@ -103,6 +108,8 @@ fn default_keymap() -> Keymap {
         (KeyboardKey::KEY_L, Command::CameraZoom(-5)),
         (KeyboardKey::KEY_K, Command::CameraZoom(5)),
     ]);
+
+    return Keymap { on_press, on_hold };
 }
 
 struct Brush {
@@ -110,7 +117,7 @@ struct Brush {
     brush_size: f32,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum BrushType {
     Drawing,
     Deleting,
@@ -181,7 +188,19 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
-        for (key, command) in keymap.iter() {
+        for (key, command) in keymap.on_press.iter() {
+            if rl.is_key_pressed(*key) {
+                match command {
+                    Command::ToggleDebugging => debugging = !debugging, // TODO: FIXME: This
+                    // flickers rather than toggles
+                    c => todo!(
+                        "Unimplemented command, or this isn't meant to be a press command: {:?}",
+                        c
+                    ),
+                }
+            }
+        }
+        for (key, command) in keymap.on_hold.iter() {
             if rl.is_key_down(*key) {
                 match command {
                     Command::CameraZoom(percentage_diff) => {
@@ -189,7 +208,6 @@ fn main() {
                         // string
                         camera.zoom += *percentage_diff as f32 / 100.0;
                     }
-                    Command::ToggleDebugging => debugging = !debugging, // TODO: FIXME: This
                     // flickers rather than toggles
                     Command::PanCameraHorizontal(diff) => {
                         camera.target.x += *diff as f32;
@@ -197,7 +215,10 @@ fn main() {
                     Command::PanCameraVertical(diff) => {
                         camera.target.y += *diff as f32;
                     }
-                    _ => todo!(),
+                    c => todo!(
+                        "Unimplemented command, or this isn't meant to be a push command: {:?}",
+                        c
+                    ),
                 }
             }
         }
