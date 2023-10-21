@@ -83,7 +83,7 @@ enum Command {
     CameraZoom(CameraZoomPercentageDiff),
 }
 
-type KeyMappings = HashMap<KeyboardKey, Command>;
+type KeyMappings = Vec<(KeyboardKey, Command)>;
 
 struct Keymap {
     on_press: KeyMappings,
