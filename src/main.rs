@@ -97,14 +97,14 @@ fn default_keymap() -> Keymap {
         (KeyboardKey::KEY_M, Command::ToggleDebugging),
         (KeyboardKey::KEY_O, Command::Save),
         (KeyboardKey::KEY_P, Command::Load),
+        (KeyboardKey::KEY_Z, Command::Undo),
+        (KeyboardKey::KEY_R, Command::Redo),
     ]);
     let on_hold = KeyMappings::from([
         (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-5)),
         (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
         (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
         (KeyboardKey::KEY_W, Command::PanCameraVertical(-5)),
-        // (KeyboardKey::KEY_Z, Command::Save),
-        // (KeyboardKey::KEY_R, Command::Save),
         // (KeyboardKey::KEY_E, Command::Save),
         // (KeyboardKey::KEY_Q, Command::Save),
         // (KeyboardKey::KEY_LEFT_BRACKET, Command::Save),
@@ -198,6 +198,9 @@ fn main() {
                     Command::ToggleDebugging => debugging = !debugging,
                     Command::Save => save(&state).unwrap(),
                     Command::Load => state = load().unwrap(),
+                    Command::Undo => undo_stroke(&mut state.strokes, &mut state.stroke_graveyard),
+                    Command::Redo => redo_stroke(&mut state.strokes, &mut state.stroke_graveyard),
+
                     c => todo!(
                         "Unimplemented command, or this isn't meant to be a press command: {:?}",
                         c
@@ -225,13 +228,6 @@ fn main() {
                     ),
                 }
             }
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_Z) {
-            undo_stroke(&mut state.strokes, &mut state.stroke_graveyard);
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_R) {
-            redo_stroke(&mut state.strokes, &mut state.stroke_graveyard);
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_E) {
