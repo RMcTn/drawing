@@ -181,21 +181,16 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
-        let mut keys_pressed = vec![];
-        while let Some(pressed_key) = rl.get_key_pressed() {
-            // TODO: FIXME: This doesn't do key holds. i.e holding D would only move the camera
-            // once, not continously
-            keys_pressed.push(pressed_key);
-        }
-        for pressed_key in keys_pressed {
-            if let Some(command) = keymap.get(&pressed_key) {
+        for (key, command) in keymap.iter() {
+            if rl.is_key_down(*key) {
                 match command {
                     Command::CameraZoom(percentage_diff) => {
                         // NOTE: There will be rounding errors here, but we can format the zoom
                         // string
                         camera.zoom += *percentage_diff as f32 / 100.0;
                     }
-                    Command::ToggleDebugging => debugging = !debugging,
+                    Command::ToggleDebugging => debugging = !debugging, // TODO: FIXME: This
+                    // flickers rather than toggles
                     Command::PanCameraHorizontal(diff) => {
                         camera.target.x += *diff as f32;
                     }
