@@ -86,19 +86,23 @@ enum Command {
 type KeyMappings = Vec<(KeyboardKey, Command)>;
 
 struct Keymap {
+    // Does not support key combinations at the moment. Could be Vec<(Vec<KeyboardKey>, Command)>
+    // if we wanted
     on_press: KeyMappings,
     on_hold: KeyMappings,
 }
 
 fn default_keymap() -> Keymap {
-    let on_press = KeyMappings::from([(KeyboardKey::KEY_M, Command::ToggleDebugging)]);
+    let on_press = KeyMappings::from([
+        (KeyboardKey::KEY_M, Command::ToggleDebugging),
+        (KeyboardKey::KEY_O, Command::Save),
+        (KeyboardKey::KEY_P, Command::Load),
+    ]);
     let on_hold = KeyMappings::from([
         (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-5)),
         (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
         (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
         (KeyboardKey::KEY_W, Command::PanCameraVertical(-5)),
-        // (KeyboardKey::KEY_O, Command::Save),
-        // (KeyboardKey::KEY_P, Command::Save),
         // (KeyboardKey::KEY_Z, Command::Save),
         // (KeyboardKey::KEY_R, Command::Save),
         // (KeyboardKey::KEY_E, Command::Save),
@@ -191,8 +195,9 @@ fn main() {
         for (key, command) in keymap.on_press.iter() {
             if rl.is_key_pressed(*key) {
                 match command {
-                    Command::ToggleDebugging => debugging = !debugging, // TODO: FIXME: This
-                    // flickers rather than toggles
+                    Command::ToggleDebugging => debugging = !debugging,
+                    Command::Save => save(&state).unwrap(),
+                    Command::Load => state = load().unwrap(),
                     c => todo!(
                         "Unimplemented command, or this isn't meant to be a press command: {:?}",
                         c
@@ -208,7 +213,6 @@ fn main() {
                         // string
                         camera.zoom += *percentage_diff as f32 / 100.0;
                     }
-                    // flickers rather than toggles
                     Command::PanCameraHorizontal(diff) => {
                         camera.target.x += *diff as f32;
                     }
@@ -221,14 +225,6 @@ fn main() {
                     ),
                 }
             }
-        }
-
-        if rl.is_key_down(KeyboardKey::KEY_O) {
-            save(&state).unwrap();
-        }
-
-        if rl.is_key_down(KeyboardKey::KEY_P) {
-            state = load().unwrap();
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_Z) {
