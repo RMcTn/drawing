@@ -88,10 +88,10 @@ type Keymap = HashMap<KeyboardKey, Command>;
 fn default_keymap() -> Keymap {
     return Keymap::from([
         (KeyboardKey::KEY_M, Command::ToggleDebugging),
-        // (KeyboardKey::KEY_A, Command::Save),
-        // (KeyboardKey::KEY_D, Command::Save),
-        // (KeyboardKey::KEY_S, Command::Save),
-        // (KeyboardKey::KEY_W, Command::Save),
+        (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-5)),
+        (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
+        (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
+        (KeyboardKey::KEY_W, Command::PanCameraVertical(-5)),
         // (KeyboardKey::KEY_O, Command::Save),
         // (KeyboardKey::KEY_P, Command::Save),
         // (KeyboardKey::KEY_Z, Command::Save),
@@ -183,6 +183,8 @@ fn main() {
 
         let mut keys_pressed = vec![];
         while let Some(pressed_key) = rl.get_key_pressed() {
+            // TODO: FIXME: This doesn't do key holds. i.e holding D would only move the camera
+            // once, not continously
             keys_pressed.push(pressed_key);
         }
         for pressed_key in keys_pressed {
@@ -194,22 +196,15 @@ fn main() {
                         camera.zoom += *percentage_diff as f32 / 100.0;
                     }
                     Command::ToggleDebugging => debugging = !debugging,
+                    Command::PanCameraHorizontal(diff) => {
+                        camera.target.x += *diff as f32;
+                    }
+                    Command::PanCameraVertical(diff) => {
+                        camera.target.y += *diff as f32;
+                    }
                     _ => todo!(),
                 }
             }
-        }
-
-        if rl.is_key_down(KeyboardKey::KEY_A) {
-            camera.target.x -= 5.0;
-        }
-        if rl.is_key_down(KeyboardKey::KEY_D) {
-            camera.target.x += 5.0;
-        }
-        if rl.is_key_down(KeyboardKey::KEY_S) {
-            camera.target.y += 5.0;
-        }
-        if rl.is_key_down(KeyboardKey::KEY_W) {
-            camera.target.y -= 5.0;
         }
 
         if rl.is_key_down(KeyboardKey::KEY_O) {
