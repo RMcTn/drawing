@@ -99,14 +99,20 @@ fn default_keymap() -> Keymap {
         (KeyboardKey::KEY_P, Command::Load),
         (KeyboardKey::KEY_Z, Command::Undo),
         (KeyboardKey::KEY_R, Command::Redo),
+        (
+            KeyboardKey::KEY_E,
+            Command::ChangeBrushType(BrushType::Deleting),
+        ),
+        (
+            KeyboardKey::KEY_Q,
+            Command::ChangeBrushType(BrushType::Drawing),
+        ),
     ]);
     let on_hold = KeyMappings::from([
         (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-5)),
         (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
         (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
         (KeyboardKey::KEY_W, Command::PanCameraVertical(-5)),
-        // (KeyboardKey::KEY_E, Command::Save),
-        // (KeyboardKey::KEY_Q, Command::Save),
         // (KeyboardKey::KEY_LEFT_BRACKET, Command::Save),
         // (KeyboardKey::KEY_RIGHT_BRACKET, Command::Save),
         (KeyboardKey::KEY_L, Command::CameraZoom(-5)),
@@ -121,7 +127,7 @@ struct Brush {
     brush_size: f32,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 enum BrushType {
     Drawing,
     Deleting,
@@ -200,6 +206,9 @@ fn main() {
                     Command::Load => state = load().unwrap(),
                     Command::Undo => undo_stroke(&mut state.strokes, &mut state.stroke_graveyard),
                     Command::Redo => redo_stroke(&mut state.strokes, &mut state.stroke_graveyard),
+                    // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
+                    // the working stroke off when changing brush type
+                    Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
 
                     c => todo!(
                         "Unimplemented command, or this isn't meant to be a press command: {:?}",
@@ -228,16 +237,6 @@ fn main() {
                     ),
                 }
             }
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_E) {
-            brush.brush_type = BrushType::Deleting;
-        }
-
-        if rl.is_key_pressed(KeyboardKey::KEY_Q) {
-            // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
-            // the working stroke off when changing brush type
-            brush.brush_type = BrushType::Drawing;
         }
 
         if rl.is_key_pressed(KeyboardKey::KEY_LEFT_BRACKET) {
