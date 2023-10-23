@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fmt::Display,
     fs::File,
     io::Write,
@@ -82,6 +81,7 @@ enum Command {
     Redo,
     ChangeBrushSize(DiffPerSecond),
     CameraZoom(CameraZoomPercentageDiff),
+    SpawnBrushStrokes,
 }
 
 type KeyMappings = Vec<(KeyboardKey, Command)>;
@@ -118,6 +118,7 @@ fn default_keymap() -> Keymap {
         (KeyboardKey::KEY_K, Command::CameraZoom(5)),
         (KeyboardKey::KEY_LEFT_BRACKET, Command::ChangeBrushSize(-50)),
         (KeyboardKey::KEY_RIGHT_BRACKET, Command::ChangeBrushSize(50)),
+        (KeyboardKey::KEY_H, Command::SpawnBrushStrokes),
     ]);
 
     return Keymap { on_press, on_hold };
@@ -187,10 +188,10 @@ fn main() {
         // TODO(reece): BUG: Brush marker looks like it's a bit off centre from the mouse cursor
         // TODO(reece): Use shaders for line drawing?
         //
-        // TODO(reece): Saving/loading?
         // TODO(reece): Installable so it's searchable as a program
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
+        // TODO: Only draw strokes that are visible in the camera (if this isn't already happening)
 
         let start_time = Instant::now();
         screen_width = rl.get_screen_width();
@@ -237,33 +238,32 @@ fn main() {
                     Command::ChangeBrushSize(size_diff_per_sec) => {
                         brush.brush_size += *size_diff_per_sec as f32 * delta_time
                     }
+                    Command::SpawnBrushStrokes => {
+                        // Create bunch of strokes with random coords in screen space for benchmark testing
+                        // @SPEEDUP Allow passed in number of points to allocate to new Stroke
+
+                        for _ in 0..50 {
+                            let initial_x: i32 = get_random_value(0, screen_width);
+                            let initial_y: i32 = get_random_value(0, screen_height);
+                            let generated_points: Vec<Point> = (1..10)
+                                .map(|n| Point {
+                                    x: (initial_x + n) as f32,
+                                    y: (initial_y + n) as f32,
+                                })
+                                .collect();
+
+                            let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
+                            generated_stroke.points = generated_points;
+
+                            state.strokes.push(Some(generated_stroke));
+                        }
+                    }
 
                     c => todo!(
                         "Unimplemented command, or this isn't meant to be a push command: {:?}",
                         c
                     ),
                 }
-            }
-        }
-
-        if rl.is_key_down(KeyboardKey::KEY_H) {
-            // Create bunch of strokes with random coords in screen space for benchmark testing
-            // @SPEEDUP Allow passed in number of points to allocate to new Stroke
-
-            for _ in 0..50 {
-                let initial_x: i32 = get_random_value(0, screen_width);
-                let initial_y: i32 = get_random_value(0, screen_height);
-                let generated_points: Vec<Point> = (1..10)
-                    .map(|n| Point {
-                        x: (initial_x + n) as f32,
-                        y: (initial_y + n) as f32,
-                    })
-                    .collect();
-
-                let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
-                generated_stroke.points = generated_points;
-
-                state.strokes.push(Some(generated_stroke));
             }
         }
 
