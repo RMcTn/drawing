@@ -69,6 +69,7 @@ fn load() -> Result<State, std::io::Error> {
 }
 
 type CameraZoomPercentageDiff = i32;
+type BrushSizeDiffPerSecond = i32;
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Command {
     Save,
@@ -79,7 +80,7 @@ enum Command {
     PanCameraVertical(i32),
     Undo,
     Redo,
-    ChangeBrushSize(CameraZoomPercentageDiff),
+    ChangeBrushSize(BrushSizeDiffPerSecond),
     CameraZoom(CameraZoomPercentageDiff),
 }
 
@@ -113,10 +114,10 @@ fn default_keymap() -> Keymap {
         (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
         (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
         (KeyboardKey::KEY_W, Command::PanCameraVertical(-5)),
-        // (KeyboardKey::KEY_LEFT_BRACKET, Command::Save),
-        // (KeyboardKey::KEY_RIGHT_BRACKET, Command::Save),
         (KeyboardKey::KEY_L, Command::CameraZoom(-5)),
         (KeyboardKey::KEY_K, Command::CameraZoom(5)),
+        (KeyboardKey::KEY_LEFT_BRACKET, Command::ChangeBrushSize(-50)),
+        (KeyboardKey::KEY_RIGHT_BRACKET, Command::ChangeBrushSize(50)),
     ]);
 
     return Keymap { on_press, on_hold };
@@ -177,6 +178,7 @@ fn main() {
     let mut last_mouse_pos = rl.get_mouse_position();
 
     while !rl.window_should_close() {
+        let delta_time = rl.get_frame_time();
         let current_fps = rl.get_fps();
         // TODO: Hotkey configuration
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
@@ -209,7 +211,6 @@ fn main() {
                     // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
                     // the working stroke off when changing brush type
                     Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
-
                     c => todo!(
                         "Unimplemented command, or this isn't meant to be a press command: {:?}",
                         c
@@ -231,6 +232,12 @@ fn main() {
                     Command::PanCameraVertical(diff) => {
                         camera.target.y += *diff as f32;
                     }
+                    // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
+                    // behaviour we want?
+                    Command::ChangeBrushSize(size_diff_per_sec) => {
+                        brush.brush_size += *size_diff_per_sec as f32 * delta_time
+                    }
+
                     c => todo!(
                         "Unimplemented command, or this isn't meant to be a push command: {:?}",
                         c
@@ -239,16 +246,6 @@ fn main() {
             }
         }
 
-        if rl.is_key_pressed(KeyboardKey::KEY_LEFT_BRACKET) {
-            // TODO(reece): Changing brush size mid stroke doesn't affect the stroke. Is this the
-            // behaviour we want?
-            // TODO(reece): Make the brush size changing delay based rather than just key pressed,
-            // so we can change brush sizes faster
-            brush.brush_size -= 5.0;
-        }
-        if rl.is_key_pressed(KeyboardKey::KEY_RIGHT_BRACKET) {
-            brush.brush_size += 5.0;
-        }
         if rl.is_key_down(KeyboardKey::KEY_H) {
             // Create bunch of strokes with random coords in screen space for benchmark testing
             // @SPEEDUP Allow passed in number of points to allocate to new Stroke
