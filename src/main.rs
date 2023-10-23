@@ -69,18 +69,18 @@ fn load() -> Result<State, std::io::Error> {
 }
 
 type CameraZoomPercentageDiff = i32;
-type BrushSizeDiffPerSecond = i32;
+type DiffPerSecond = i32;
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Command {
     Save,
     Load,
     ChangeBrushType(BrushType),
     ToggleDebugging,
-    PanCameraHorizontal(i32),
-    PanCameraVertical(i32),
+    PanCameraHorizontal(DiffPerSecond),
+    PanCameraVertical(DiffPerSecond),
     Undo,
     Redo,
-    ChangeBrushSize(BrushSizeDiffPerSecond),
+    ChangeBrushSize(DiffPerSecond),
     CameraZoom(CameraZoomPercentageDiff),
 }
 
@@ -110,10 +110,10 @@ fn default_keymap() -> Keymap {
         ),
     ]);
     let on_hold = KeyMappings::from([
-        (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-5)),
-        (KeyboardKey::KEY_D, Command::PanCameraHorizontal(5)),
-        (KeyboardKey::KEY_S, Command::PanCameraVertical(5)),
-        (KeyboardKey::KEY_W, Command::PanCameraVertical(-5)),
+        (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-250)),
+        (KeyboardKey::KEY_D, Command::PanCameraHorizontal(250)),
+        (KeyboardKey::KEY_S, Command::PanCameraVertical(250)),
+        (KeyboardKey::KEY_W, Command::PanCameraVertical(-250)),
         (KeyboardKey::KEY_L, Command::CameraZoom(-5)),
         (KeyboardKey::KEY_K, Command::CameraZoom(5)),
         (KeyboardKey::KEY_LEFT_BRACKET, Command::ChangeBrushSize(-50)),
@@ -226,11 +226,11 @@ fn main() {
                         // string
                         camera.zoom += *percentage_diff as f32 / 100.0;
                     }
-                    Command::PanCameraHorizontal(diff) => {
-                        camera.target.x += *diff as f32;
+                    Command::PanCameraHorizontal(diff_per_sec) => {
+                        camera.target.x += *diff_per_sec as f32 * delta_time;
                     }
-                    Command::PanCameraVertical(diff) => {
-                        camera.target.y += *diff as f32;
+                    Command::PanCameraVertical(diff_per_sec) => {
+                        camera.target.y += *diff_per_sec as f32 * delta_time;
                     }
                     // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
                     // behaviour we want?
