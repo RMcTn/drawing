@@ -50,7 +50,13 @@ type Strokes = Vec<Option<Stroke>>;
 struct State {
     strokes: Strokes,
     stroke_graveyard: Vec<Stroke>,
-    text: Vec<String>,
+    text: Vec<Text>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Text {
+    content: String,
+    position: Vector2,
 }
 
 fn save(state: &State) -> Result<(), std::io::Error> {
@@ -139,7 +145,7 @@ enum BrushType {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-enum Mode {
+enum Tool {
     Brush,
     Text,
 }
@@ -174,7 +180,7 @@ fn main() {
 
     let strokes: Strokes = Vec::with_capacity(10);
     let stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
-    let text_things: Vec<String> = Vec::with_capacity(10);
+    let text_things: Vec<Text> = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
@@ -184,13 +190,16 @@ fn main() {
         stroke_graveyard,
         text: text_things,
     };
-    let mut current_mode = Mode::Brush;
+    let mut current_tool = Tool::Brush;
 
     let mut is_drawing = false;
+    let mut is_texting = false;
     let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
+    let mut working_text = Text {
+        position: rvec2(0, 0),
+        content: "".to_string(),
+    };
     let mut last_mouse_pos = rl.get_mouse_position();
-
-    let mut current_text_buffer = String::new();
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -215,19 +224,22 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
-        if current_mode == Mode::Text {
+        if current_tool == Tool::Text {
             while let Some(key) = rl.get_key_pressed_number() {
                 if key == KeyboardKey::KEY_ENTER as u32 {
                     dbg!("Exiting text mode");
-                    current_mode = Mode::Brush;
-                    state.text.push(current_text_buffer);
-                    current_text_buffer = String::new();
+                    current_tool = Tool::Brush;
+                    state.text.push(working_text);
+                    working_text = Text {
+                        position: rvec2(0, 0),
+                        content: "".to_string(),
+                    };
                 }
-                current_text_buffer.push(char::from_u32(key).unwrap());
+                working_text.content.push(char::from_u32(key).unwrap());
             }
         }
 
-        if current_mode != Mode::Text {
+        if current_tool != Tool::Text {
             for (key, command) in keymap.on_press.iter() {
                 if rl.is_key_pressed(*key) {
                     match command {
@@ -235,6 +247,7 @@ fn main() {
                         Command::Save => save(&state).unwrap(),
                         Command::Load => state = load().unwrap(),
                         Command::Undo => {
+                            // TODO: Undo/Redo will need reworked for text mode
                             undo_stroke(&mut state.strokes, &mut state.stroke_graveyard)
                         }
                         Command::Redo => {
@@ -244,7 +257,7 @@ fn main() {
                         // the working stroke off when changing brush type
                         Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
                         Command::EnterTextMode => {
-                            current_mode = Mode::Text;
+                            current_tool = Tool::Text;
                             // TODO: Exit text mode without 'saving'
                         }
 
@@ -311,7 +324,8 @@ fn main() {
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
             apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut camera);
         }
-        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
+        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
+        {
             delete_stroke(
                 &mut state.strokes,
                 &mut state.stroke_graveyard,
@@ -319,7 +333,8 @@ fn main() {
                 brush.brush_size,
             );
         }
-        if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+
+        if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
             if brush.brush_type == BrushType::Deleting {
                 delete_stroke(
                     &mut state.strokes,
@@ -348,13 +363,27 @@ fn main() {
                 working_stroke.points.push(point);
             }
         }
-        if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+        if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
             // Finished drawing
+            // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
+            // the brush stroke unless we change back to brush mode
             if is_drawing {
                 state.strokes.push(Some(working_stroke));
                 working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
             }
             is_drawing = false;
+        }
+
+        if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Text {
+            if !is_texting {
+                let new_text_pos = drawing_pos;
+                working_text = Text {
+                    content: "".to_string(),
+                    position: new_text_pos,
+                };
+                is_texting = true;
+                // TODO: Show some visual indicator this is happening
+            }
         }
 
         let mouse_wheel_diff = rl.get_mouse_wheel_move();
@@ -388,6 +417,14 @@ fn main() {
                 &mut drawing_camera,
                 &working_stroke,
                 working_stroke.brush_size,
+            );
+
+            drawing_camera.draw_text(
+                &working_text.content,
+                working_text.position.x as i32,
+                working_text.position.y as i32,
+                16,
+                Color::BLACK,
             );
 
             // Our brush marker
@@ -435,8 +472,8 @@ fn main() {
             let fps_str = format!("FPS: {}", current_fps);
 
             drawing.draw_text(&fps_str, 5, 180, 30, Color::RED);
-            let mode_str = format!("Mode: {:?}", current_mode);
-            drawing.draw_text(&mode_str, 5, 210, 30, Color::RED);
+            let tool_str = format!("Tool: {:?}", current_tool);
+            drawing.draw_text(&tool_str, 5, 210, 30, Color::RED);
         }
 
         let elapsed = start_time.elapsed();
