@@ -50,6 +50,7 @@ type Strokes = Vec<Option<Stroke>>;
 struct State {
     strokes: Strokes,
     stroke_graveyard: Vec<Stroke>,
+    text: Vec<String>,
 }
 
 fn save(state: &State) -> Result<(), std::io::Error> {
@@ -82,6 +83,7 @@ enum Command {
     ChangeBrushSize(DiffPerSecond),
     CameraZoom(CameraZoomPercentageDiff),
     SpawnBrushStrokes,
+    EnterTextMode,
 }
 
 type KeyMappings = Vec<(KeyboardKey, Command)>;
@@ -108,6 +110,7 @@ fn default_keymap() -> Keymap {
             KeyboardKey::KEY_Q,
             Command::ChangeBrushType(BrushType::Drawing),
         ),
+        (KeyboardKey::KEY_T, Command::EnterTextMode),
     ]);
     let on_hold = KeyMappings::from([
         (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-250)),
@@ -165,6 +168,7 @@ fn main() {
 
     let strokes: Strokes = Vec::with_capacity(10);
     let stroke_graveyard: Vec<Stroke> = Vec::with_capacity(10);
+    let text_things: Vec<String> = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
@@ -172,11 +176,15 @@ fn main() {
     let mut state = State {
         strokes,
         stroke_graveyard,
+        text: text_things,
     };
 
     let mut is_drawing = false;
     let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
     let mut last_mouse_pos = rl.get_mouse_position();
+
+    let mut is_in_text_mode = false;
+    let mut current_text_buffer = String::new();
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -201,70 +209,97 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
-        for (key, command) in keymap.on_press.iter() {
-            if rl.is_key_pressed(*key) {
-                match command {
-                    Command::ToggleDebugging => debugging = !debugging,
-                    Command::Save => save(&state).unwrap(),
-                    Command::Load => state = load().unwrap(),
-                    Command::Undo => undo_stroke(&mut state.strokes, &mut state.stroke_graveyard),
-                    Command::Redo => redo_stroke(&mut state.strokes, &mut state.stroke_graveyard),
-                    // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
-                    // the working stroke off when changing brush type
-                    Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
-                    c => todo!(
+        if is_in_text_mode {
+            while let Some(key) = rl.get_key_pressed_number() {
+                if key == KeyboardKey::KEY_ENTER as u32 {
+                    dbg!("Exiting text mode");
+                    is_in_text_mode = false;
+                    state.text.push(current_text_buffer);
+                    current_text_buffer = String::new();
+                }
+                current_text_buffer.push(char::from_u32(key).unwrap());
+            }
+        }
+
+        if !is_in_text_mode {
+            for (key, command) in keymap.on_press.iter() {
+                if rl.is_key_pressed(*key) {
+                    match command {
+                        Command::ToggleDebugging => debugging = !debugging,
+                        Command::Save => save(&state).unwrap(),
+                        Command::Load => state = load().unwrap(),
+                        Command::Undo => {
+                            undo_stroke(&mut state.strokes, &mut state.stroke_graveyard)
+                        }
+                        Command::Redo => {
+                            redo_stroke(&mut state.strokes, &mut state.stroke_graveyard)
+                        }
+                        // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
+                        // the working stroke off when changing brush type
+                        Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
+                        Command::EnterTextMode => {
+                            is_in_text_mode = true;
+                            // TODO: Exit text mode without 'saving'
+                        }
+
+                        c => todo!(
                         "Unimplemented command, or this isn't meant to be a press command: {:?}",
                         c
                     ),
+                    }
+                }
+            }
+            for (key, command) in keymap.on_hold.iter() {
+                if rl.is_key_down(*key) {
+                    match command {
+                        Command::CameraZoom(percentage_diff) => {
+                            // NOTE: There will be rounding errors here, but we can format the zoom
+                            // string
+                            camera.zoom += *percentage_diff as f32 / 100.0;
+                        }
+                        Command::PanCameraHorizontal(diff_per_sec) => {
+                            camera.target.x += *diff_per_sec as f32 * delta_time;
+                        }
+                        Command::PanCameraVertical(diff_per_sec) => {
+                            camera.target.y += *diff_per_sec as f32 * delta_time;
+                        }
+                        // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
+                        // behaviour we want?
+                        Command::ChangeBrushSize(size_diff_per_sec) => {
+                            brush.brush_size += *size_diff_per_sec as f32 * delta_time
+                        }
+                        Command::SpawnBrushStrokes => {
+                            // Create bunch of strokes with random coords in screen space for benchmark testing
+                            // @SPEEDUP Allow passed in number of points to allocate to new Stroke
+
+                            for _ in 0..50 {
+                                let initial_x: i32 = get_random_value(0, screen_width);
+                                let initial_y: i32 = get_random_value(0, screen_height);
+                                let generated_points: Vec<Point> = (1..10)
+                                    .map(|n| Point {
+                                        x: (initial_x + n) as f32,
+                                        y: (initial_y + n) as f32,
+                                    })
+                                    .collect();
+
+                                let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
+                                generated_stroke.points = generated_points;
+
+                                state.strokes.push(Some(generated_stroke));
+                            }
+                        }
+
+                        c => todo!(
+                            "Unimplemented command, or this isn't meant to be a push command: {:?}",
+                            c
+                        ),
+                    }
                 }
             }
         }
-        for (key, command) in keymap.on_hold.iter() {
-            if rl.is_key_down(*key) {
-                match command {
-                    Command::CameraZoom(percentage_diff) => {
-                        // NOTE: There will be rounding errors here, but we can format the zoom
-                        // string
-                        camera.zoom += *percentage_diff as f32 / 100.0;
-                    }
-                    Command::PanCameraHorizontal(diff_per_sec) => {
-                        camera.target.x += *diff_per_sec as f32 * delta_time;
-                    }
-                    Command::PanCameraVertical(diff_per_sec) => {
-                        camera.target.y += *diff_per_sec as f32 * delta_time;
-                    }
-                    // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
-                    // behaviour we want?
-                    Command::ChangeBrushSize(size_diff_per_sec) => {
-                        brush.brush_size += *size_diff_per_sec as f32 * delta_time
-                    }
-                    Command::SpawnBrushStrokes => {
-                        // Create bunch of strokes with random coords in screen space for benchmark testing
-                        // @SPEEDUP Allow passed in number of points to allocate to new Stroke
 
-                        for _ in 0..50 {
-                            let initial_x: i32 = get_random_value(0, screen_width);
-                            let initial_y: i32 = get_random_value(0, screen_height);
-                            let generated_points: Vec<Point> = (1..10)
-                                .map(|n| Point {
-                                    x: (initial_x + n) as f32,
-                                    y: (initial_y + n) as f32,
-                                })
-                                .collect();
-
-                            let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
-                            generated_stroke.points = generated_points;
-
-                            state.strokes.push(Some(generated_stroke));
-                        }
-                    }
-
-                    c => todo!(
-                        "Unimplemented command, or this isn't meant to be a push command: {:?}",
-                        c
-                    ),
-                }
-            }
+        if rl.is_key_pressed(KeyboardKey::KEY_F) {
+            dbg!(&state.text);
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
@@ -394,6 +429,8 @@ fn main() {
             let fps_str = format!("FPS: {}", current_fps);
 
             drawing.draw_text(&fps_str, 5, 180, 30, Color::RED);
+            let text_mode_str = format!("In text mode: {}", is_in_text_mode);
+            drawing.draw_text(&text_mode_str, 5, 210, 30, Color::RED);
         }
 
         let elapsed = start_time.elapsed();
