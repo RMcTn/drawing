@@ -138,6 +138,12 @@ enum BrushType {
     Deleting,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+enum Mode {
+    Brush,
+    Text,
+}
+
 fn main() {
     let keymap = default_keymap();
     let mut debugging = false;
@@ -178,12 +184,12 @@ fn main() {
         stroke_graveyard,
         text: text_things,
     };
+    let mut current_mode = Mode::Brush;
 
     let mut is_drawing = false;
     let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
     let mut last_mouse_pos = rl.get_mouse_position();
 
-    let mut is_in_text_mode = false;
     let mut current_text_buffer = String::new();
 
     while !rl.window_should_close() {
@@ -209,11 +215,11 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
-        if is_in_text_mode {
+        if current_mode == Mode::Text {
             while let Some(key) = rl.get_key_pressed_number() {
                 if key == KeyboardKey::KEY_ENTER as u32 {
                     dbg!("Exiting text mode");
-                    is_in_text_mode = false;
+                    current_mode = Mode::Brush;
                     state.text.push(current_text_buffer);
                     current_text_buffer = String::new();
                 }
@@ -221,7 +227,7 @@ fn main() {
             }
         }
 
-        if !is_in_text_mode {
+        if current_mode != Mode::Text {
             for (key, command) in keymap.on_press.iter() {
                 if rl.is_key_pressed(*key) {
                     match command {
@@ -238,7 +244,7 @@ fn main() {
                         // the working stroke off when changing brush type
                         Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
                         Command::EnterTextMode => {
-                            is_in_text_mode = true;
+                            current_mode = Mode::Text;
                             // TODO: Exit text mode without 'saving'
                         }
 
@@ -429,8 +435,8 @@ fn main() {
             let fps_str = format!("FPS: {}", current_fps);
 
             drawing.draw_text(&fps_str, 5, 180, 30, Color::RED);
-            let text_mode_str = format!("In text mode: {}", is_in_text_mode);
-            drawing.draw_text(&text_mode_str, 5, 210, 30, Color::RED);
+            let mode_str = format!("Mode: {:?}", current_mode);
+            drawing.draw_text(&mode_str, 5, 210, 30, Color::RED);
         }
 
         let elapsed = start_time.elapsed();
