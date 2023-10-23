@@ -226,6 +226,8 @@ fn main() {
 
         if current_tool == Tool::Text {
             while let Some(key) = rl.get_key_pressed_number() {
+                // FIXME: TODO: This input method only gets a limited set of keys i.e Shift + 2
+                // will only give 2, not @. Letters are also always uppercase
                 if key == KeyboardKey::KEY_ENTER as u32 {
                     dbg!("Exiting text mode");
                     current_tool = Tool::Brush;
@@ -234,6 +236,7 @@ fn main() {
                         position: rvec2(0, 0),
                         content: "".to_string(),
                     };
+                    is_texting = false;
                 }
                 working_text.content.push(char::from_u32(key).unwrap());
             }
@@ -411,6 +414,15 @@ fn main() {
                     draw_stroke(&mut drawing_camera, &line, line.brush_size);
                 }
             }
+            for text in &state.text {
+                drawing_camera.draw_text(
+                    &text.content,
+                    text.position.x as i32,
+                    text.position.y as i32,
+                    16,
+                    Color::BLACK,
+                );
+            }
 
             // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
             draw_stroke(
@@ -462,18 +474,18 @@ fn main() {
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
         drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
 
+        let tool_str = format!("Tool: {:?}", current_tool);
+        drawing.draw_text(&tool_str, 5, 90, 30, Color::RED);
+
         if debugging {
             let target_str = format!("target {:?}", camera.target);
-            drawing.draw_text(&target_str, 5, 90, 30, Color::RED);
+            drawing.draw_text(&target_str, 5, 120, 30, Color::RED);
             let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
-            drawing.draw_text(&drawing_pos_str, 5, 120, 30, Color::RED);
+            drawing.draw_text(&drawing_pos_str, 5, 150, 30, Color::RED);
             let number_of_strokes_str = format!("Total strokes: {}", state.strokes.len());
-            drawing.draw_text(&number_of_strokes_str, 5, 150, 30, Color::RED);
+            drawing.draw_text(&number_of_strokes_str, 5, 180, 30, Color::RED);
             let fps_str = format!("FPS: {}", current_fps);
-
-            drawing.draw_text(&fps_str, 5, 180, 30, Color::RED);
-            let tool_str = format!("Tool: {:?}", current_tool);
-            drawing.draw_text(&tool_str, 5, 210, 30, Color::RED);
+            drawing.draw_text(&fps_str, 5, 210, 30, Color::RED);
         }
 
         let elapsed = start_time.elapsed();
