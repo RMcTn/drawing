@@ -225,10 +225,15 @@ fn main() {
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
 
         if current_tool == Tool::Text {
-            while let Some(key) = rl.get_key_pressed_number() {
-                // FIXME: TODO: This input method only gets a limited set of keys i.e Shift + 2
-                // will only give 2, not @. Letters are also always uppercase
-                if key == KeyboardKey::KEY_ENTER as u32 {
+            loop {
+                let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
+                let ch = char_and_key_pressed.0;
+                let key = char_and_key_pressed.1;
+                if key.is_none() && ch.is_none() {
+                    break;
+                }
+                let key = key.unwrap(); // TODO: Handle this unwrap
+                if key == KeyboardKey::KEY_ENTER {
                     dbg!("Exiting text mode");
                     current_tool = Tool::Brush;
                     state.text.push(working_text);
@@ -238,7 +243,16 @@ fn main() {
                     };
                     is_texting = false;
                 }
-                working_text.content.push(char::from_u32(key).unwrap());
+
+                if ch.is_some() {
+                    let ch = ch.unwrap();
+                    let ch = char::from_u32(ch as u32);
+                    match ch {
+                        Some(c) => working_text.content.push(c),
+                        None => (), // TODO: FIXME: Some sort of logging/let the user know for
+                                    // unrepresentable character?
+                    }
+                }
             }
         }
 
@@ -610,4 +624,16 @@ fn delete_stroke(
             }
         }
     }
+}
+
+fn get_char_and_key_pressed(raylib: &mut RaylibHandle) -> (Option<i32>, Option<KeyboardKey>) {
+    let char_pressed = unsafe { raylib::ffi::GetCharPressed() };
+
+    let key_pressed = raylib.get_key_pressed();
+
+    if char_pressed == 0 {
+        return (None, key_pressed);
+    }
+
+    return (Some(char_pressed), key_pressed);
 }
