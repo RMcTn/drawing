@@ -6,10 +6,7 @@ use std::{
     time::{self, Instant},
 };
 
-use raylib::{
-    ffi::DrawBoundingBox,
-    prelude::{Vector2, *},
-};
+use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 
 const SAVE_FILENAME: &'static str = "strokes_json.txt";
