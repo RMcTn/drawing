@@ -55,6 +55,7 @@ Two types of key inputs:
 | Right click | Pan |
 | Middle click | Delete mode |
 | Mouse wheel | Zoom in/Zoom out |
+| Ctrl + Mouse wheel | Change brush size |
 
 ### Text Tool
 With the Text Tool selected, hover the mouse where you want the text to begin and start to type. Press ENTER to finish.  
