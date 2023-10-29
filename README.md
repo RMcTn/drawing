@@ -56,7 +56,7 @@ Two types of key inputs:
 | Mouse wheel | Zoom in/Zoom out |
 
 ### Text Tool
-With the Text Tool selected, click where you want the text to begin and start to type. Press ENTER to finish.
+With the Text Tool selected, hover the mouse where you want the text to begin and start to type. Press ENTER to finish.
 
 ### Dependencies
 TODO

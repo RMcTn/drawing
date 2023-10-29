@@ -6,7 +6,10 @@ use std::{
     time::{self, Instant},
 };
 
-use raylib::prelude::{Vector2, *};
+use raylib::{
+    ffi::DrawBoundingBox,
+    prelude::{Vector2, *},
+};
 use serde::{Deserialize, Serialize};
 
 const SAVE_FILENAME: &'static str = "strokes_json.txt";
@@ -193,12 +196,8 @@ fn main() {
     let mut current_tool = Tool::Brush;
 
     let mut is_drawing = false;
-    let mut is_texting = false;
     let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
-    let mut working_text = Text {
-        position: rvec2(0, 0),
-        content: "".to_string(),
-    };
+    let mut working_text: Option<Text> = None;
     let mut last_mouse_pos = rl.get_mouse_position();
 
     while !rl.window_should_close() {
@@ -232,26 +231,30 @@ fn main() {
                 if key.is_none() && ch.is_none() {
                     break;
                 }
-                // TODO: HANDLE BACKSPACES!!!
-                if key == Some(KeyboardKey::KEY_ENTER) {
-                    dbg!("Exiting text mode");
-                    current_tool = Tool::Brush;
-                    state.text.push(working_text);
-                    working_text = Text {
-                        position: rvec2(0, 0),
-                        content: "".to_string(),
-                    };
-                    is_texting = false;
-                }
 
                 if ch.is_some() {
+                    if working_text.is_none() {
+                        working_text = Some(Text {
+                            content: "".to_string(),
+                            position: drawing_pos,
+                        })
+                    }
                     let ch = ch.unwrap();
                     let ch = char::from_u32(ch as u32);
                     match ch {
-                        Some(c) => working_text.content.push(c),
+                        Some(c) => working_text.as_mut().unwrap().content.push(c), // Was a safe
+                        // unwrap at the time
                         None => (), // TODO: FIXME: Some sort of logging/let the user know for
                                     // unrepresentable character?
                     }
+                }
+
+                // TODO: HANDLE BACKSPACES!!!
+                if key == Some(KeyboardKey::KEY_ENTER) {
+                    dbg!("Exiting text tool");
+                    current_tool = Tool::Brush;
+                    state.text.push(working_text.unwrap());
+                    working_text = None;
                 }
             }
         }
@@ -334,13 +337,10 @@ fn main() {
             }
         }
 
-        if rl.is_key_pressed(KeyboardKey::KEY_F) {
-            dbg!(&state.text);
-        }
-
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
             apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut camera);
         }
+
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
         {
             delete_stroke(
@@ -391,18 +391,6 @@ fn main() {
             is_drawing = false;
         }
 
-        if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Text {
-            if !is_texting {
-                let new_text_pos = drawing_pos;
-                working_text = Text {
-                    content: "".to_string(),
-                    position: new_text_pos,
-                };
-                is_texting = true;
-                // TODO: Show some visual indicator this is happening
-            }
-        }
-
         let mouse_wheel_diff = rl.get_mouse_wheel_move();
         if rl.is_key_up(KeyboardKey::KEY_LEFT_CONTROL) {
             apply_mouse_wheel_zoom(mouse_wheel_diff, &mut camera);
@@ -445,13 +433,15 @@ fn main() {
                 working_stroke.brush_size,
             );
 
-            drawing_camera.draw_text(
-                &working_text.content,
-                working_text.position.x as i32,
-                working_text.position.y as i32,
-                16,
-                Color::BLACK,
-            );
+            if let Some(working_text) = &working_text {
+                drawing_camera.draw_text(
+                    &working_text.content,
+                    working_text.position.x as i32,
+                    working_text.position.y as i32,
+                    16,
+                    Color::BLACK,
+                );
+            }
 
             // Our brush marker
             drawing_camera.draw_circle_lines(
@@ -626,6 +616,10 @@ fn delete_stroke(
     }
 }
 
+/// A key press and a char press are treated differently in Raylib it looks like.
+/// Key presses are always uppercase (i.e 'a' will be KEY_A, so will 'A').
+/// Char presses are the individual characters that have been pressed, so can differentiate between
+/// uppercase and lowercase (same with symbols)
 fn get_char_and_key_pressed(raylib: &mut RaylibHandle) -> (Option<i32>, Option<KeyboardKey>) {
     let char_pressed = unsafe { raylib::ffi::GetCharPressed() };
 
