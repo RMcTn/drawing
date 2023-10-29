@@ -249,12 +249,21 @@ fn main() {
                     }
                 }
 
-                // TODO: HANDLE BACKSPACES!!!
-                if key == Some(KeyboardKey::KEY_ENTER) {
-                    dbg!("Exiting text tool");
-                    current_tool = Tool::Brush;
-                    state.text.push(working_text.unwrap());
-                    working_text = None;
+                if let Some(key) = key {
+                    if key == KeyboardKey::KEY_ENTER {
+                        dbg!("Exiting text tool");
+                        current_tool = Tool::Brush;
+                        // TODO: Don't save the text if the content is empty
+                        state.text.push(working_text.unwrap());
+                        working_text = None;
+                    }
+                    // TODO: Handle holding in backspace
+                    if key == KeyboardKey::KEY_BACKSPACE {
+                        dbg!("Backspace is down");
+                        if let Some(text) = working_text.as_mut() {
+                            let _removed_char = text.content.pop();
+                        }
+                    }
                 }
             }
         }

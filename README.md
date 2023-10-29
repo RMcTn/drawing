@@ -12,6 +12,7 @@ Keys cannot be rebound yet until an interface is built for that.
 - Text font cannot be changed.
 - Text size cannot be changed.
 - Text colour cannot be changed.
+- Backspace cannot be held down to remove characters. Backspace must be pressed multiple times if needed.
 
 ### Save file
 There is no stable save versioning at the moment. Save files can and will break with changes to the program until a stable save versioning system is implemented.
@@ -56,7 +57,8 @@ Two types of key inputs:
 | Mouse wheel | Zoom in/Zoom out |
 
 ### Text Tool
-With the Text Tool selected, hover the mouse where you want the text to begin and start to type. Press ENTER to finish.
+With the Text Tool selected, hover the mouse where you want the text to begin and start to type. Press ENTER to finish.  
+Press BACKSPACE to remove characters.
 
 ### Dependencies
 TODO
