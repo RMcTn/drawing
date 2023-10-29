@@ -232,8 +232,8 @@ fn main() {
                 if key.is_none() && ch.is_none() {
                     break;
                 }
-                let key = key.unwrap(); // TODO: Handle this unwrap
-                if key == KeyboardKey::KEY_ENTER {
+                // TODO: HANDLE BACKSPACES!!!
+                if key == Some(KeyboardKey::KEY_ENTER) {
                     dbg!("Exiting text mode");
                     current_tool = Tool::Brush;
                     state.text.push(working_text);
