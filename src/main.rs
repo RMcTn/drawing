@@ -89,7 +89,7 @@ enum Command {
     ChangeBrushSize(DiffPerSecond),
     CameraZoom(CameraZoomPercentageDiff),
     SpawnBrushStrokes,
-    EnterTextMode,
+    UseTextTool,
 }
 
 type KeyMappings = Vec<(KeyboardKey, Command)>;
@@ -116,7 +116,7 @@ fn default_keymap() -> Keymap {
             KeyboardKey::KEY_Q,
             Command::ChangeBrushType(BrushType::Drawing),
         ),
-        (KeyboardKey::KEY_T, Command::EnterTextMode),
+        (KeyboardKey::KEY_T, Command::UseTextTool),
     ]);
     let on_hold = KeyMappings::from([
         (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-250)),
@@ -273,7 +273,7 @@ fn main() {
                         // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
                         // the working stroke off when changing brush type
                         Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
-                        Command::EnterTextMode => {
+                        Command::UseTextTool => {
                             current_tool = Tool::Text;
                             // TODO: Exit text mode without 'saving'
                         }
