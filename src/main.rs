@@ -8,7 +8,7 @@ use std::{
 
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
-use slotmap::{DefaultKey, SlotMap};
+use slotmap::{new_key_type, DefaultKey, SlotMap};
 
 const SAVE_FILENAME: &'static str = "strokes_json.txt";
 
@@ -48,10 +48,13 @@ impl Stroke {
 // TODO: strokes and stroke_graveyard should have different key types probably
 type Strokes = SlotMap<DefaultKey, Stroke>;
 
+new_key_type! { struct TextKey; }
 #[derive(Debug, Deserialize, Serialize)]
 enum Action {
     AddStroke(DefaultKey),
     RemoveStroke(DefaultKey),
+    AddText(TextKey),
+    RemoveText(TextKey),
 }
 
 #[derive(Deserialize, Serialize)]
@@ -60,17 +63,16 @@ struct State {
     undo_actions: Vec<Action>,
     redo_actions: Vec<Action>,
     stroke_graveyard: Strokes,
-    text: Vec<Text>,
+    text: SlotMap<TextKey, Text>,
+    text_graveyard: SlotMap<TextKey, Text>,
 }
 
 impl State {
-    /// Adds the stroke to the 'alive' stroke list
     fn add_stroke_with_undo(&mut self, stroke: Stroke) {
         let key = self.add_stroke(stroke);
         self.undo_actions.push(Action::AddStroke(key));
     }
 
-    /// Adds the stroke to the 'alive' stroke list at
     fn add_stroke(&mut self, stroke: Stroke) -> DefaultKey {
         self.strokes.insert(stroke)
     }
@@ -93,7 +95,7 @@ impl State {
 
     fn restore_stroke(&mut self, key: DefaultKey) -> Option<DefaultKey> {
         if let Some(stroke) = self.stroke_graveyard.remove(key) {
-            return Some(self.strokes.insert(stroke));
+            return Some(self.add_stroke(stroke));
         }
         dbg!(
             "Tried to restore stroke with key {} but it couldn't find it",
@@ -101,6 +103,43 @@ impl State {
         );
 
         None
+    }
+
+    fn add_text_with_undo(&mut self, text: Text) {
+        let key = self.add_text(text);
+        self.undo_actions.push(Action::AddText(key));
+    }
+
+    fn add_text(&mut self, text: Text) -> TextKey {
+        self.text.insert(text)
+    }
+
+    fn restore_text(&mut self, key: TextKey) -> Option<TextKey> {
+        if let Some(text) = self.text_graveyard.remove(key) {
+            return Some(self.add_text(text));
+        }
+        dbg!(
+            "Tried to restore text with key {} but it couldn't find it",
+            key
+        );
+
+        None
+    }
+
+    fn remove_text(&mut self, key: TextKey) -> Option<TextKey> {
+        if let Some(text) = self.text.remove(key) {
+            return Some(self.add_text_to_graveyard(text));
+        }
+        dbg!(
+            "Tried to remove text with key {} but it was already gone",
+            key
+        );
+
+        None
+    }
+
+    fn add_text_to_graveyard(&mut self, text: Text) -> TextKey {
+        self.text_graveyard.insert(text)
     }
 
     fn undo(&mut self) {
@@ -116,6 +155,18 @@ impl State {
                     Action::RemoveStroke(key) => {
                         if let Some(new_key) = self.restore_stroke(key) {
                             self.redo_actions.push(Action::RemoveStroke(new_key));
+                            break;
+                        }
+                    }
+                    Action::AddText(key) => {
+                        if let Some(new_key) = self.remove_text(key) {
+                            self.redo_actions.push(Action::AddText(new_key));
+                            break;
+                        }
+                    }
+                    Action::RemoveText(key) => {
+                        if let Some(new_key) = self.restore_text(key) {
+                            self.redo_actions.push(Action::RemoveText(new_key));
                             break;
                         }
                     }
@@ -141,10 +192,18 @@ impl State {
                             self.undo_actions.push(Action::RemoveStroke(new_key));
                             break;
                         }
-                        dbg!(
-                            "Tried to restore stroke with key {} but it couldn't find it",
-                            key
-                        );
+                    }
+                    Action::AddText(key) => {
+                        if let Some(new_key) = self.restore_text(key) {
+                            self.undo_actions.push(Action::AddText(new_key));
+                            break;
+                        }
+                    }
+                    Action::RemoveText(key) => {
+                        if let Some(new_key) = self.remove_text(key) {
+                            self.undo_actions.push(Action::RemoveText(new_key));
+                            break;
+                        }
                     }
                 }
             } else {
@@ -206,6 +265,7 @@ fn load() -> Result<State, std::io::Error> {
 
 type CameraZoomPercentageDiff = i32;
 type DiffPerSecond = i32;
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Command {
     Save,
@@ -308,19 +368,17 @@ fn main() {
 
     let initial_brush_size = 10.0;
 
-    let strokes = SlotMap::new();
-    let stroke_graveyard = SlotMap::new();
-    let text_things = Vec::with_capacity(10);
     let mut brush = Brush {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
     };
     let mut state = State {
-        strokes,
+        strokes: SlotMap::new(),
         undo_actions: Vec::new(),
         redo_actions: Vec::new(),
-        stroke_graveyard,
-        text: text_things,
+        stroke_graveyard: SlotMap::new(),
+        text: SlotMap::with_key(),
+        text_graveyard: SlotMap::with_key(),
     };
     let mut current_tool = Tool::Brush;
 
@@ -382,11 +440,16 @@ fn main() {
                     if key == KeyboardKey::KEY_ENTER {
                         dbg!("Exiting text tool");
                         current_tool = Tool::Brush;
-                        // TODO: Don't save the text if the content is empty
-                        state.text.push(working_text.unwrap());
+                        if let Some(text) = working_text {
+                            if !text.content.is_empty() {
+                                state.add_text_with_undo(text);
+                            }
+                        }
+
                         working_text = None;
                     }
-                    // TODO: Handle holding in backspace
+                    // TODO: Handle holding in backspace, probably a 'delay' between each removal
+                    // if backspace is held
                     if key == KeyboardKey::KEY_BACKSPACE {
                         dbg!("Backspace is down");
                         if let Some(text) = working_text.as_mut() {
@@ -420,9 +483,9 @@ fn main() {
                         }
 
                         c => todo!(
-                        "Unimplemented command, or this isn't meant to be a press command: {:?}",
-                        c
-                    ),
+                            "Unimplemented command, or this isn't meant to be a press command: {:?}",
+                            c
+                        ),
                     }
                 }
             }
@@ -544,7 +607,7 @@ fn main() {
             for (_, stroke) in &state.strokes {
                 draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
             }
-            for text in &state.text {
+            for (_, text) in &state.text {
                 drawing_camera.draw_text(
                     &text.content,
                     text.position.x as i32,

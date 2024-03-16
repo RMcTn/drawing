@@ -8,7 +8,6 @@ Made for personal use so expect things to change often.
 Keys cannot be rebound yet until an interface is built for that.
 #### Text Tool
 - Delete mode will only delete brush strokes at this time. Text cannot be removed.
-- Undo/Redo only supports brush strokes at the moment. Text cannot be undone/redone.
 - Text font cannot be changed.
 - Text size cannot be changed.
 - Text colour cannot be changed.
