@@ -486,9 +486,9 @@ fn main() {
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
-            let strokes_to_delete = state.strokes_within_point(drawing_pos, brush.brush_size);
-            state.delete_strokes(strokes_to_delete);
             if brush.brush_type == BrushType::Deleting {
+                let strokes_to_delete = state.strokes_within_point(drawing_pos, brush.brush_size);
+                state.delete_strokes(strokes_to_delete);
             } else {
                 // Drawing
                 if !is_drawing {
