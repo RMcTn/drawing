@@ -45,11 +45,10 @@ impl Stroke {
     }
 }
 
-// type Strokes = Vec<Option<Stroke>>;
-// TODO: strokes and stroke_graveyard should have different key types
+// TODO: strokes and stroke_graveyard should have different key types probably
 type Strokes = SlotMap<DefaultKey, Stroke>;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 enum Action {
     AddStroke(DefaultKey),
     RemoveStroke(DefaultKey),
@@ -65,10 +64,15 @@ struct State {
 }
 
 impl State {
-    fn add_stroke(&mut self, stroke: Stroke) {
-        let new_key = self.strokes.insert(stroke);
-        // TODO: Move this undo action part of out here
-        self.undo_actions.push(Action::AddStroke(new_key));
+    /// Adds the stroke to the 'alive' stroke list
+    fn add_stroke_with_undo(&mut self, stroke: Stroke) {
+        let key = self.add_stroke(stroke);
+        self.undo_actions.push(Action::AddStroke(key));
+    }
+
+    /// Adds the stroke to the 'alive' stroke list at
+    fn add_stroke(&mut self, stroke: Stroke) -> DefaultKey {
+        self.strokes.insert(stroke)
     }
 
     fn remove_stroke(&mut self, key: DefaultKey) -> Option<DefaultKey> {
@@ -100,40 +104,80 @@ impl State {
     }
 
     fn undo(&mut self) {
-        if let Some(action) = self.undo_actions.pop() {
-            match action {
-                Action::AddStroke(key) => {
-                    if let Some(new_key) = self.remove_stroke(key) {
-                        self.redo_actions.push(Action::AddStroke(new_key))
+        loop {
+            if let Some(action) = self.undo_actions.pop() {
+                match action {
+                    Action::AddStroke(key) => {
+                        if let Some(new_key) = self.remove_stroke(key) {
+                            self.redo_actions.push(Action::AddStroke(new_key));
+                            break;
+                        }
+                    }
+                    Action::RemoveStroke(key) => {
+                        if let Some(new_key) = self.restore_stroke(key) {
+                            self.redo_actions.push(Action::RemoveStroke(new_key));
+                            break;
+                        }
                     }
                 }
-                Action::RemoveStroke(key) => {
-                    if let Some(new_key) = self.restore_stroke(key) {
-                        self.redo_actions.push(Action::RemoveStroke(new_key))
-                    }
-                }
+            } else {
+                break;
             }
         }
     }
 
     fn redo(&mut self) {
-        if let Some(action) = self.redo_actions.pop() {
-            match action {
-                Action::AddStroke(key) => {
-                    if let Some(new_key) = self.restore_stroke(key) {
-                        self.undo_actions.push(Action::AddStroke(new_key));
+        loop {
+            if let Some(action) = self.redo_actions.pop() {
+                match action {
+                    Action::AddStroke(key) => {
+                        if let Some(new_key) = self.restore_stroke(key) {
+                            self.undo_actions.push(Action::AddStroke(new_key));
+                            break;
+                        }
                     }
-                }
-                Action::RemoveStroke(key) => {
-                    if let Some(new_key) = self.remove_stroke(key) {
-                        self.undo_actions.push(Action::RemoveStroke(new_key));
-                    } else {
+                    Action::RemoveStroke(key) => {
+                        if let Some(new_key) = self.remove_stroke(key) {
+                            self.undo_actions.push(Action::RemoveStroke(new_key));
+                            break;
+                        }
                         dbg!(
                             "Tried to restore stroke with key {} but it couldn't find it",
                             key
                         );
                     }
                 }
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn strokes_within_point(&self, mouse_point: Vector2, brush_size: f32) -> Vec<DefaultKey> {
+        let mut strokes = vec![];
+        for (k, stroke) in &self.strokes {
+            for point in &stroke.points {
+                if check_collision_circles(
+                    Vector2 {
+                        x: point.x,
+                        y: point.y,
+                    },
+                    stroke.brush_size / 2.0,
+                    mouse_point,
+                    brush_size / 2.0,
+                ) {
+                    strokes.push(k);
+                    break;
+                }
+            }
+        }
+        strokes
+    }
+
+    fn delete_strokes(&mut self, stroke_keys: Vec<DefaultKey>) {
+        for key in stroke_keys {
+            if let Some(new_key) = self.remove_stroke(key) {
+                self.undo_actions.push(Action::RemoveStroke(new_key));
             }
         }
     }
@@ -418,7 +462,7 @@ fn main() {
                                 let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
                                 generated_stroke.points = generated_points;
 
-                                state.add_stroke(generated_stroke);
+                                state.add_stroke_with_undo(generated_stroke);
                             }
                         }
 
@@ -437,25 +481,14 @@ fn main() {
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
         {
-            // Get strokes in mouse area
-            // delete those strokes
-
-            // delete_stroke(
-            //     &mut state.strokes,
-            //     &mut state.stroke_graveyard,
-            //     &drawing_pos,
-            //     brush.brush_size,
-            // );
+            let strokes_to_delete = state.strokes_within_point(drawing_pos, brush.brush_size);
+            state.delete_strokes(strokes_to_delete);
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
+            let strokes_to_delete = state.strokes_within_point(drawing_pos, brush.brush_size);
+            state.delete_strokes(strokes_to_delete);
             if brush.brush_type == BrushType::Deleting {
-                // delete_stroke(
-                //     &mut state.strokes,
-                //     &mut state.stroke_graveyard,
-                //     &drawing_pos,
-                //     brush.brush_size,
-                // )
             } else {
                 // Drawing
                 if !is_drawing {
@@ -482,7 +515,7 @@ fn main() {
             // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
             // the brush stroke unless we change back to brush mode
             if is_drawing {
-                state.add_stroke(working_stroke);
+                state.add_stroke_with_undo(working_stroke);
                 working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
             }
             is_drawing = false;
@@ -653,39 +686,6 @@ fn clamp_brush_size(brush: &mut Brush) {
         brush.brush_size = 1.0;
     }
 }
-
-// fn delete_stroke(
-//     strokes: &mut Strokes,
-//     stroke_graveyard: &mut Vec<Stroke>,
-//     mouse_point: &Vector2,
-//     brush_size: f32,
-// ) {
-//     // @SPEEDUP: Can we do anything smarter than looping through every single stroke + point when
-//     // trying to delete?
-//     for i in 0..strokes.len() {
-//         let stroke = &mut strokes[i];
-//
-//         if let Some(stroke_item) = stroke {
-//             for j in 0..stroke_item.points.len() {
-//                 let point = &stroke_item.points[j];
-//                 // @BUG: Still some weirdness when it comes to deleting small lines it feels like
-//                 if check_collision_circles(
-//                     Vector2 {
-//                         x: point.x,
-//                         y: point.y,
-//                     },
-//                     stroke_item.brush_size / 2.0,
-//                     mouse_point,
-//                     brush_size / 2.0,
-//                 ) {
-//                     let deleted_stroke = std::mem::replace(stroke, None).unwrap(); // Pretty sure this can't panic because of the `if let` above
-//                     stroke_graveyard.push(deleted_stroke);
-//                     break;
-//                 }
-//             }
-//         }
-//     }
-// }
 
 /// A key press and a char press are treated differently in Raylib it looks like.
 /// Key presses are always uppercase (i.e 'a' will be KEY_A, so will 'A').
