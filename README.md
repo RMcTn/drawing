@@ -3,6 +3,12 @@
 
 Made for personal use so expect things to change often.
 
+
+
+https://github.com/RMcTn/drawing/assets/18317099/1e464877-fa8f-4b9a-9052-e5bceb170827
+
+
+
 ## Limitations
 #### Key bindings
 Keys cannot be rebound yet until an interface is built for that.
