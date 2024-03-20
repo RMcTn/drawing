@@ -2,6 +2,7 @@ use std::{
     fmt::Display,
     fs::File,
     io::Write,
+    path::PathBuf,
     thread,
     time::{self, Instant},
 };
@@ -65,6 +66,7 @@ struct State {
     stroke_graveyard: Strokes,
     text: SlotMap<TextKey, Text>,
     text_graveyard: SlotMap<TextKey, Text>,
+    output_path: Option<PathBuf>,
 }
 
 impl State {
@@ -248,12 +250,22 @@ struct Text {
     position: Vector2,
 }
 
-fn save(state: &State) -> Result<(), std::io::Error> {
+fn save(state: &mut State) -> Result<(), std::io::Error> {
     // TODO: FIXME: There's no versioning for save files at the moment
     // so anything new isn't backwards compatible
     let output = serde_json::to_string(&state)?;
-    let mut file = File::create(SAVE_FILENAME)?;
-    file.write_all(output.as_bytes())?;
+    if let Some(path) = &state.output_path {
+        let mut file = File::create(path)?;
+        file.write_all(output.as_bytes())?;
+    } else {
+        if let Some(file_path) = rfd::FileDialog::new().save_file() {
+            let mut file = File::create(&file_path)?;
+            file.write_all(output.as_bytes())?;
+            state.output_path = Some(file_path);
+        } else {
+            dbg!("Didn't specify file");
+        }
+    }
     Ok(())
 }
 
@@ -379,6 +391,7 @@ fn main() {
         stroke_graveyard: SlotMap::new(),
         text: SlotMap::with_key(),
         text_graveyard: SlotMap::with_key(),
+        output_path: None,
     };
     let mut current_tool = Tool::Brush;
 
@@ -465,7 +478,7 @@ fn main() {
                 if rl.is_key_pressed(*key) {
                     match command {
                         Command::ToggleDebugging => debugging = !debugging,
-                        Command::Save => save(&state).unwrap(),
+                        Command::Save => save(&mut state).unwrap(),
                         Command::Load => state = load().unwrap(),
                         Command::Undo => {
                             // TODO: Undo/Redo will need reworked for text mode
@@ -730,7 +743,7 @@ fn apply_mouse_wheel_zoom(mouse_wheel_diff: f32, camera: &mut Camera2D) {
 }
 
 fn apply_mouse_wheel_brush_size(mouse_wheel_diff: f32, brush: &mut Brush) {
-    let mouse_wheel_amplifying = 1.50;
+    let mouse_wheel_amplifying = 3.50;
     brush.brush_size += mouse_wheel_diff * mouse_wheel_amplifying;
 }
 
