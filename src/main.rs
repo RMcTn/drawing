@@ -11,8 +11,6 @@ use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
 
-const SAVE_FILENAME: &'static str = "strokes_json.txt";
-
 #[derive(Debug, Deserialize, Serialize)]
 struct Point {
     x: f32,
@@ -250,25 +248,30 @@ struct Text {
     position: Vector2,
 }
 
-fn save(state: &mut State) -> Result<(), std::io::Error> {
+fn save_with_file_picker(state: &mut State) {
+    if let Some(path) = get_save_path() {
+        if let Err(err) = save(state, &path) {
+            eprintln!("Could not save {}. Error: {}", &path.to_string_lossy(), err.to_string())
+        } else {
+            state.output_path = Some(path);
+        }
+    } else {
+        println!("File picker was exited without picking a file. No saving has taken place");
+    }
+
+}
+
+fn save(state: &State, path: &Path) -> Result<(), std::io::Error> {
     // TODO: FIXME: There's no versioning for save files at the moment
     // so anything new isn't backwards compatible
     let output = serde_json::to_string(&state)?;
-    // TODO: Need to decide when we want the save file dialog to show vs just saving to the
-    // existing output path
-    if let Some(path) = &state.output_path {
-        let mut file = File::create(path)?;
-        file.write_all(output.as_bytes())?;
-    } else {
-        if let Some(file_path) = rfd::FileDialog::new().save_file() {
-            let mut file = File::create(&file_path)?;
-            file.write_all(output.as_bytes())?;
-            state.output_path = Some(file_path);
-        } else {
-            dbg!("Didn't specify file");
-        }
-    }
+    let mut file = File::create(&path)?;
+    file.write_all(output.as_bytes())?;
     Ok(())
+}
+
+fn get_save_path() -> Option<PathBuf> {
+    return rfd::FileDialog::new().save_file();
 }
 
 fn load(path: &Path) -> Result<State, std::io::Error> {
@@ -287,6 +290,7 @@ type DiffPerSecond = i32;
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Command {
     Save,
+    SaveAs,
     Load,
     ChangeBrushType(BrushType),
     ToggleDebugging,
@@ -313,6 +317,7 @@ fn default_keymap() -> Keymap {
     let on_press = KeyMappings::from([
         (KeyboardKey::KEY_M, Command::ToggleDebugging),
         (KeyboardKey::KEY_O, Command::Save),
+        (KeyboardKey::KEY_I, Command::SaveAs),
         (KeyboardKey::KEY_P, Command::Load),
         (KeyboardKey::KEY_Z, Command::Undo),
         (KeyboardKey::KEY_R, Command::Redo),
@@ -484,7 +489,18 @@ fn main() {
                 if rl.is_key_pressed(*key) {
                     match command {
                         Command::ToggleDebugging => debugging = !debugging,
-                        Command::Save => save(&mut state).unwrap(),
+                        Command::Save => {
+                            if let Some(current_path) = state.output_path.clone() {
+                                if let Err(err) = save(&mut state, &current_path) {
+                                    eprintln!("Could not save {}. Error: {}", current_path.to_string_lossy(), err.to_string())
+                                }
+                            } else {
+                                save_with_file_picker(&mut state);
+                            }
+                        }
+                        Command::SaveAs => {
+                                save_with_file_picker(&mut state);
+                        } 
                         Command::Load => { 
                             if let Some(path) = get_load_path() {
                                 if let Ok(loaded_state) = load(&path) {
@@ -494,7 +510,7 @@ fn main() {
                                     eprintln!("Could not load {}. File doesn't contain valid drawing data.", path.to_string_lossy())
                                 }
                             } else {
-                                dbg!("No file given to load");
+                                println!("File picker was exited without picking a file. No loading has taken place");
                             }
                         }
                         Command::Undo => {
