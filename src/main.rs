@@ -2,7 +2,7 @@ use std::{
     fmt::Display,
     fs::File,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     thread,
     time::{self, Instant},
 };
@@ -254,6 +254,8 @@ fn save(state: &mut State) -> Result<(), std::io::Error> {
     // TODO: FIXME: There's no versioning for save files at the moment
     // so anything new isn't backwards compatible
     let output = serde_json::to_string(&state)?;
+    // TODO: Need to decide when we want the save file dialog to show vs just saving to the
+    // existing output path
     if let Some(path) = &state.output_path {
         let mut file = File::create(path)?;
         file.write_all(output.as_bytes())?;
@@ -269,10 +271,14 @@ fn save(state: &mut State) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-fn load() -> Result<State, std::io::Error> {
-    let contents = std::fs::read_to_string(SAVE_FILENAME)?;
+fn load(path: &Path) -> Result<State, std::io::Error> {
+    let contents = std::fs::read_to_string(path)?;
     let state: State = serde_json::from_str(&contents)?;
     return Ok(state);
+}
+
+fn get_load_path() -> Option<PathBuf> {
+    rfd::FileDialog::new().pick_file()
 }
 
 type CameraZoomPercentageDiff = i32;
@@ -479,7 +485,18 @@ fn main() {
                     match command {
                         Command::ToggleDebugging => debugging = !debugging,
                         Command::Save => save(&mut state).unwrap(),
-                        Command::Load => state = load().unwrap(),
+                        Command::Load => { 
+                            if let Some(path) = get_load_path() {
+                                if let Ok(loaded_state) = load(&path) {
+                                    state = loaded_state;
+                                    state.output_path = None;
+                                } else {
+                                    eprintln!("Could not load {}. File doesn't contain valid drawing data.", path.to_string_lossy())
+                                }
+                            } else {
+                                dbg!("No file given to load");
+                            }
+                        }
                         Command::Undo => {
                             // TODO: Undo/Redo will need reworked for text mode
                             state.undo();
