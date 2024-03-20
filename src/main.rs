@@ -65,6 +65,18 @@ struct State {
     text: SlotMap<TextKey, Text>,
     text_graveyard: SlotMap<TextKey, Text>,
     output_path: Option<PathBuf>,
+    #[serde(with = "Camera2DDef")]
+    #[serde(default)]
+    camera: Camera2D,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(remote = "Camera2D")]
+struct Camera2DDef {
+    offset: Vector2,
+    target: Vector2,
+    rotation: f32,
+    zoom: f32,
 }
 
 impl State {
@@ -382,7 +394,7 @@ fn main() {
     let seconds_per_frame = 1.0 / target_fps as f32;
     let duration_per_frame = time::Duration::from_secs_f32(seconds_per_frame);
 
-    let mut camera = Camera2D {
+    let camera = Camera2D {
         offset: rvec2(screen_width / 2, screen_height / 2),
         target: rvec2(0, 0),
         rotation: 0.0,
@@ -403,6 +415,7 @@ fn main() {
         text: SlotMap::with_key(),
         text_graveyard: SlotMap::with_key(),
         output_path: None,
+        camera,
     };
     let mut current_tool = Tool::Brush;
 
@@ -429,10 +442,10 @@ fn main() {
         let start_time = Instant::now();
         screen_width = rl.get_screen_width();
         screen_height = rl.get_screen_height();
-        camera.offset = rvec2(screen_width / 2, screen_height / 2);
+        state.camera.offset = rvec2(screen_width / 2, screen_height / 2);
 
         let mouse_pos = rl.get_mouse_position();
-        let drawing_pos = rl.get_screen_to_world2D(mouse_pos, camera);
+        let drawing_pos = rl.get_screen_to_world2D(mouse_pos, state.camera);
 
         if current_tool == Tool::Text {
             loop {
@@ -541,13 +554,13 @@ fn main() {
                         Command::CameraZoom(percentage_diff) => {
                             // NOTE: There will be rounding errors here, but we can format the zoom
                             // string
-                            camera.zoom += *percentage_diff as f32 / 100.0;
+                            state.camera.zoom += *percentage_diff as f32 / 100.0;
                         }
                         Command::PanCameraHorizontal(diff_per_sec) => {
-                            camera.target.x += *diff_per_sec as f32 * delta_time;
+                            state.camera.target.x += *diff_per_sec as f32 * delta_time;
                         }
                         Command::PanCameraVertical(diff_per_sec) => {
-                            camera.target.y += *diff_per_sec as f32 * delta_time;
+                            state.camera.target.y += *diff_per_sec as f32 * delta_time;
                         }
                         // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
                         // behaviour we want?
@@ -585,7 +598,7 @@ fn main() {
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
-            apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut camera);
+            apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
@@ -632,7 +645,7 @@ fn main() {
 
         let mouse_wheel_diff = rl.get_mouse_wheel_move();
         if rl.is_key_up(KeyboardKey::KEY_LEFT_CONTROL) {
-            apply_mouse_wheel_zoom(mouse_wheel_diff, &mut camera);
+            apply_mouse_wheel_zoom(mouse_wheel_diff, &mut state.camera);
         }
 
         if rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL) {
@@ -641,13 +654,13 @@ fn main() {
 
         clamp_brush_size(&mut brush);
 
-        clamp_camera_zoom(&mut camera);
+        clamp_camera_zoom(&mut state.camera);
 
         last_mouse_pos = mouse_pos;
 
         let mut drawing = rl.begin_drawing(&thread);
         {
-            let mut drawing_camera = drawing.begin_mode2D(camera);
+            let mut drawing_camera = drawing.begin_mode2D(state.camera);
 
             drawing_camera.clear_background(Color::WHITE);
             for (_, stroke) in &state.strokes {
@@ -697,8 +710,8 @@ fn main() {
                     Color::PURPLE,
                 );
                 drawing_camera.draw_line_ex(
-                    rvec2((-screen_width * 10) as f32, camera.target.y),
-                    rvec2((screen_width * 10) as f32, camera.target.y),
+                    rvec2((-screen_width * 10) as f32, state.camera.target.y),
+                    rvec2((screen_width * 10) as f32, state.camera.target.y),
                     5.0,
                     Color::PURPLE,
                 );
@@ -710,7 +723,7 @@ fn main() {
             BrushType::Deleting => "Deleting",
         };
         let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
-        let zoom_str = format!("Zoom: {:.2}", camera.zoom);
+        let zoom_str = format!("Zoom: {:.2}", state.camera.zoom);
         drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
         drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
@@ -719,7 +732,7 @@ fn main() {
         drawing.draw_text(&tool_str, 5, 90, 30, Color::RED);
 
         if debugging {
-            let target_str = format!("target {:?}", camera.target);
+            let target_str = format!("target {:?}", state.camera.target);
             drawing.draw_text(&target_str, 5, 120, 30, Color::RED);
             let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
             drawing.draw_text(&drawing_pos_str, 5, 150, 30, Color::RED);
