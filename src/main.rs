@@ -1,21 +1,21 @@
 use std::{
-    fmt::Display
-    ,
-    io::Write,
+    fmt::Display,
     path::PathBuf,
     thread,
     time::{self, Instant},
 };
 
-use raylib::prelude::{*, Vector2};
+use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
-use slotmap::{DefaultKey, new_key_type, SlotMap};
+use slotmap::{new_key_type, DefaultKey, SlotMap};
 
-use persistence::{save, save_with_file_picker};
+use crate::input::append_input_to_working_text;
+use input::{get_char_and_key_pressed, process_key_down_events, process_key_pressed_events};
 use render::draw_stroke;
 
-mod render;
+mod input;
 mod persistence;
+mod render;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Point {
@@ -263,7 +263,7 @@ impl State {
 #[derive(Debug, Deserialize, Serialize)]
 struct Text {
     content: String,
-    position: Vector2,
+    position: Option<Vector2>,
 }
 
 type CameraZoomPercentageDiff = i32;
@@ -422,140 +422,55 @@ fn main() {
                 let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
                 let ch = char_and_key_pressed.0;
                 let key = char_and_key_pressed.1;
-                if key.is_none() && ch.is_none() {
+                if ch.is_none() && key.is_none() {
                     break;
                 }
 
-                if ch.is_some() {
-                    if working_text.is_none() {
-                        working_text = Some(Text {
-                            content: "".to_string(),
-                            position: drawing_pos,
-                        })
+                let ch = ch.unwrap();
+                let key = key.unwrap();
+
+                append_input_to_working_text(ch, &mut working_text);
+
+                if key == KeyboardKey::KEY_ENTER {
+                    dbg!("Exiting text tool");
+                    current_tool = Tool::Brush;
+                    if let Some(text) = working_text {
+                        if !text.content.is_empty() {
+                            state.add_text_with_undo(text);
+                        }
                     }
-                    let ch = ch.unwrap();
-                    let ch = char::from_u32(ch as u32);
-                    match ch {
-                        Some(c) => working_text.as_mut().unwrap().content.push(c), // Was a safe
-                        // unwrap at the time
-                        None => (), // TODO: FIXME: Some sort of logging/let the user know for
-                        // unrepresentable character?
-                    }
+
+                    working_text = None;
                 }
-
-                if let Some(key) = key {
-                    if key == KeyboardKey::KEY_ENTER {
-                        dbg!("Exiting text tool");
-                        current_tool = Tool::Brush;
-                        if let Some(text) = working_text {
-                            if !text.content.is_empty() {
-                                state.add_text_with_undo(text);
-                            }
-                        }
-
-                        working_text = None;
-                    }
-                    // TODO: Handle holding in backspace, probably a 'delay' between each removal
-                    // if backspace is held
-                    if key == KeyboardKey::KEY_BACKSPACE {
-                        dbg!("Backspace is down");
-                        if let Some(text) = working_text.as_mut() {
-                            let _removed_char = text.content.pop();
-                        }
+                // TODO: Handle holding in backspace, probably a 'delay' between each removal
+                // if backspace is held
+                if key == KeyboardKey::KEY_BACKSPACE {
+                    dbg!("Backspace is down");
+                    if let Some(text) = working_text.as_mut() {
+                        let _removed_char = text.content.pop();
                     }
                 }
             }
         }
 
         if current_tool != Tool::Text {
-            for (key, command) in keymap.on_press.iter() {
-                if rl.is_key_pressed(*key) {
-                    match command {
-                        Command::ToggleDebugging => debugging = !debugging,
-                        Command::Save => {
-                            if let Some(current_path) = state.output_path.clone() {
-                                if let Err(err) = save(&mut state, &current_path) {
-                                    eprintln!("Could not save {}. Error: {}", current_path.to_string_lossy(), err.to_string())
-                                }
-                            } else {
-                                save_with_file_picker(&mut state);
-                            }
-                        }
-                        Command::SaveAs => {
-                            save_with_file_picker(&mut state);
-                        }
-                        Command::Load => {
-                            persistence::load_with_file_picker(&mut state);
-                        }
-                        Command::Undo => {
-                            // TODO: Undo/Redo will need reworked for text mode
-                            state.undo();
-                        }
-                        Command::Redo => {
-                            state.redo();
-                        }
-                        // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
-                        // the working stroke off when changing brush type
-                        Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
-                        Command::UseTextTool => {
-                            current_tool = Tool::Text;
-                            // TODO: Exit text mode without 'saving'
-                        }
-
-                        c => todo!(
-                            "Unimplemented command, or this isn't meant to be a press command: {:?}",
-                            c
-                        ),
-                    }
-                }
-            }
-            for (key, command) in keymap.on_hold.iter() {
-                if rl.is_key_down(*key) {
-                    match command {
-                        Command::CameraZoom(percentage_diff) => {
-                            // NOTE: There will be rounding errors here, but we can format the zoom
-                            // string
-                            state.camera.zoom += *percentage_diff as f32 / 100.0;
-                        }
-                        Command::PanCameraHorizontal(diff_per_sec) => {
-                            state.camera.target.x += *diff_per_sec as f32 * delta_time;
-                        }
-                        Command::PanCameraVertical(diff_per_sec) => {
-                            state.camera.target.y += *diff_per_sec as f32 * delta_time;
-                        }
-                        // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
-                        // behaviour we want?
-                        Command::ChangeBrushSize(size_diff_per_sec) => {
-                            brush.brush_size += *size_diff_per_sec as f32 * delta_time
-                        }
-                        Command::SpawnBrushStrokes => {
-                            // Create bunch of strokes with random coords in screen space for benchmark testing
-                            // @SPEEDUP Allow passed in number of points to allocate to new Stroke
-
-                            for _ in 0..50 {
-                                let initial_x: i32 = get_random_value(0, screen_width);
-                                let initial_y: i32 = get_random_value(0, screen_height);
-                                let generated_points: Vec<Point> = (1..10)
-                                    .map(|n| Point {
-                                        x: (initial_x + n) as f32,
-                                        y: (initial_y + n) as f32,
-                                    })
-                                    .collect();
-
-                                let mut generated_stroke = Stroke::new(Color::SKYBLUE, 10.0);
-                                generated_stroke.points = generated_points;
-
-                                state.add_stroke_with_undo(generated_stroke);
-                            }
-                        }
-
-                        c => todo!(
-                            "Unimplemented command, or this isn't meant to be a push command: {:?}",
-                            c
-                        ),
-                    }
-                }
-            }
+            process_key_pressed_events(
+                &keymap,
+                &mut debugging,
+                &mut rl,
+                &mut brush,
+                &mut state,
+                &mut current_tool,
+            );
+            process_key_down_events(
+                &keymap,
+                screen_width,
+                screen_height,
+                &mut rl,
+                &mut brush,
+                &mut state,
+                delta_time,
+            );
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
@@ -628,13 +543,15 @@ fn main() {
                 draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
             }
             for (_, text) in &state.text {
-                drawing_camera.draw_text(
-                    &text.content,
-                    text.position.x as i32,
-                    text.position.y as i32,
-                    16,
-                    Color::BLACK,
-                );
+                if let Some(pos) = text.position {
+                    drawing_camera.draw_text(
+                        &text.content,
+                        pos.x as i32,
+                        pos.y as i32,
+                        16,
+                        Color::BLACK,
+                    );
+                }
             }
 
             // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
@@ -645,13 +562,15 @@ fn main() {
             );
 
             if let Some(working_text) = &working_text {
-                drawing_camera.draw_text(
-                    &working_text.content,
-                    working_text.position.x as i32,
-                    working_text.position.y as i32,
-                    16,
-                    Color::BLACK,
-                );
+                if let Some(pos) = working_text.position {
+                    drawing_camera.draw_text(
+                        &working_text.content,
+                        pos.x as i32,
+                        pos.y as i32,
+                        16,
+                        Color::BLACK,
+                    );
+                }
             }
 
             // Our brush marker
@@ -744,20 +663,4 @@ fn clamp_brush_size(brush: &mut Brush) {
     if brush.brush_size < 1.0 {
         brush.brush_size = 1.0;
     }
-}
-
-/// A key press and a char press are treated differently in Raylib it looks like.
-/// Key presses are always uppercase (i.e 'a' will be KEY_A, so will 'A').
-/// Char presses are the individual characters that have been pressed, so can differentiate between
-/// uppercase and lowercase (same with symbols)
-fn get_char_and_key_pressed(raylib: &mut RaylibHandle) -> (Option<i32>, Option<KeyboardKey>) {
-    let char_pressed = unsafe { raylib::ffi::GetCharPressed() };
-
-    let key_pressed = raylib.get_key_pressed();
-
-    if char_pressed == 0 {
-        return (None, key_pressed);
-    }
-
-    return (Some(char_pressed), key_pressed);
 }
