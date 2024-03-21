@@ -1,15 +1,21 @@
 use std::{
-    fmt::Display,
-    fs::File,
+    fmt::Display
+    ,
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     thread,
     time::{self, Instant},
 };
 
-use raylib::prelude::{Vector2, *};
+use raylib::prelude::{*, Vector2};
 use serde::{Deserialize, Serialize};
-use slotmap::{new_key_type, DefaultKey, SlotMap};
+use slotmap::{DefaultKey, new_key_type, SlotMap};
+
+use persistence::{save, save_with_file_picker};
+use render::draw_stroke;
+
+mod render;
+mod persistence;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Point {
@@ -260,42 +266,6 @@ struct Text {
     position: Vector2,
 }
 
-fn save_with_file_picker(state: &mut State) {
-    if let Some(path) = get_save_path() {
-        if let Err(err) = save(state, &path) {
-            eprintln!("Could not save {}. Error: {}", &path.to_string_lossy(), err.to_string())
-        } else {
-            state.output_path = Some(path);
-        }
-    } else {
-        println!("File picker was exited without picking a file. No saving has taken place");
-    }
-
-}
-
-fn save(state: &State, path: &Path) -> Result<(), std::io::Error> {
-    // TODO: FIXME: There's no versioning for save files at the moment
-    // so anything new isn't backwards compatible
-    let output = serde_json::to_string(&state)?;
-    let mut file = File::create(&path)?;
-    file.write_all(output.as_bytes())?;
-    Ok(())
-}
-
-fn get_save_path() -> Option<PathBuf> {
-    return rfd::FileDialog::new().save_file();
-}
-
-fn load(path: &Path) -> Result<State, std::io::Error> {
-    let contents = std::fs::read_to_string(path)?;
-    let state: State = serde_json::from_str(&contents)?;
-    return Ok(state);
-}
-
-fn get_load_path() -> Option<PathBuf> {
-    rfd::FileDialog::new().pick_file()
-}
-
 type CameraZoomPercentageDiff = i32;
 type DiffPerSecond = i32;
 
@@ -469,7 +439,7 @@ fn main() {
                         Some(c) => working_text.as_mut().unwrap().content.push(c), // Was a safe
                         // unwrap at the time
                         None => (), // TODO: FIXME: Some sort of logging/let the user know for
-                                    // unrepresentable character?
+                        // unrepresentable character?
                     }
                 }
 
@@ -512,19 +482,10 @@ fn main() {
                             }
                         }
                         Command::SaveAs => {
-                                save_with_file_picker(&mut state);
-                        } 
-                        Command::Load => { 
-                            if let Some(path) = get_load_path() {
-                                if let Ok(loaded_state) = load(&path) {
-                                    state = loaded_state;
-                                    state.output_path = None;
-                                } else {
-                                    eprintln!("Could not load {}. File doesn't contain valid drawing data.", path.to_string_lossy())
-                                }
-                            } else {
-                                println!("File picker was exited without picking a file. No loading has taken place");
-                            }
+                            save_with_file_picker(&mut state);
+                        }
+                        Command::Load => {
+                            persistence::load_with_file_picker(&mut state);
                         }
                         Command::Undo => {
                             // TODO: Undo/Redo will need reworked for text mode
@@ -747,30 +708,6 @@ fn main() {
             let time_to_sleep = duration_per_frame - elapsed;
             thread::sleep(time_to_sleep);
         }
-    }
-}
-
-fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke, brush_size: f32) {
-    if stroke.points.len() == 0 {
-        return;
-    }
-    for i in 0..stroke.points.len() - 1 {
-        let point = &stroke.points[i];
-        let next_point = &stroke.points[i + 1];
-
-        let first_vec = Vector2 {
-            x: point.x,
-            y: point.y,
-        };
-        let last_vec = Vector2 {
-            x: next_point.x,
-            y: next_point.y,
-        };
-
-        // We're drawing the line + circle here just cause it looks a bit better (circle hides the blockiness of the line)
-        drawing.draw_line_ex(first_vec, last_vec, brush_size, stroke.color);
-        // Half the brush size here since draw call wants radius
-        drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color); // @SPEEDUP This is slow as fuck
     }
 }
 
