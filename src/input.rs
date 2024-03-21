@@ -1,8 +1,10 @@
-use crate::persistence::{save, save_with_file_picker};
-use crate::{persistence, Brush, Command, Keymap, Point, State, Stroke, Text, Tool};
 use raylib::color::Color;
 use raylib::consts::KeyboardKey;
 use raylib::{get_random_value, RaylibHandle};
+
+use crate::persistence::{save, save_with_file_picker};
+use crate::state::State;
+use crate::{persistence, Brush, Command, Keymap, Point, Stroke, Text, Tool};
 
 pub fn process_key_down_events(
     keymap: &Keymap,
@@ -133,7 +135,7 @@ pub fn get_char_and_key_pressed(raylib: &mut RaylibHandle) -> (Option<i32>, Opti
     return (Some(char_pressed), key_pressed);
 }
 
-pub fn append_input_to_working_text(ch: i32, mut working_text: &mut Option<Text>) {
+pub fn append_input_to_working_text(ch: i32, working_text: &mut Option<Text>) {
     if working_text.is_none() {
         let _ = working_text.insert(Text {
             content: "".to_string(),

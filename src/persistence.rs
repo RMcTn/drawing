@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::State;
+use crate::state::State;
 
 pub fn save_with_file_picker(state: &mut State) {
     if let Some(path) = get_save_path() {
