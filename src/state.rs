@@ -8,7 +8,7 @@ use slotmap::{DefaultKey, SlotMap};
 
 use crate::{Action, Stroke, Strokes, Text, TextKey};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct State {
     pub strokes: Strokes,
     pub undo_actions: Vec<Action>,
@@ -204,4 +204,56 @@ struct Camera2DDef {
     target: Vector2,
     rotation: f32,
     zoom: f32,
+}
+
+#[cfg(test)]
+mod tests {
+    use raylib::prelude::Color;
+
+    use crate::Text;
+
+    use super::State;
+
+    #[test]
+    fn it_undoes_and_redoes_strokes() {
+        let mut state = State::default();
+        let stroke = crate::Stroke {
+            points: vec![],
+            color: Color::BLACK,
+            brush_size: 10.0,
+        };
+
+        state.add_stroke_with_undo(stroke);
+        assert_eq!(state.strokes.len(), 1);
+        assert_eq!(state.stroke_graveyard.len(), 0);
+
+        state.undo();
+        assert_eq!(state.strokes.len(), 0);
+        assert_eq!(state.stroke_graveyard.len(), 1);
+
+        state.redo();
+        assert_eq!(state.strokes.len(), 1);
+        assert_eq!(state.stroke_graveyard.len(), 0);
+    }
+
+    #[test]
+    fn it_undoes_and_redoes_text() {
+        let mut state = State::default();
+        let text = Text {
+            content: "Stuff".to_string(),
+            position: None,
+        };
+
+        state.add_text_with_undo(text);
+        assert_eq!(state.text.len(), 1);
+        assert_eq!(state.text_graveyard.len(), 0);
+
+        state.undo();
+        assert_eq!(state.text.len(), 0);
+        assert_eq!(state.text_graveyard.len(), 1);
+
+        state.redo();
+        assert_eq!(state.text.len(), 1);
+        assert_eq!(state.text_graveyard.len(), 0);
+    }
 }
