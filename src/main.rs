@@ -4,7 +4,10 @@ use std::{
     time::{self, Instant},
 };
 
-use raylib::prelude::{Vector2, *};
+use raylib::{
+    ffi::DrawBoundingBox,
+    prelude::{Vector2, *},
+};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
 
@@ -22,6 +25,15 @@ mod state;
 struct Point {
     x: f32,
     y: f32,
+}
+
+impl Into<ffi::Vector2> for &Point {
+    fn into(self) -> ffi::Vector2 {
+        ffi::Vector2 {
+            x: self.x,
+            y: self.y,
+        }
+    }
 }
 
 impl Display for Point {
@@ -337,23 +349,36 @@ fn main() {
 
         last_mouse_pos = mouse_pos;
 
+        let camera_view_boundary = rrect(
+            state.camera.offset.x / state.camera.zoom + state.camera.target.x
+                - screen_width as f32 / state.camera.zoom,
+            state.camera.offset.y / state.camera.zoom + state.camera.target.y
+                - (screen_height as f32 / state.camera.zoom),
+            screen_width as f32 / state.camera.zoom,
+            screen_height as f32 / state.camera.zoom,
+        );
+
         let mut drawing = rl.begin_drawing(&thread);
         {
             let mut drawing_camera = drawing.begin_mode2D(state.camera);
 
             drawing_camera.clear_background(Color::WHITE);
             for (_, stroke) in &state.strokes {
-                draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
+                if is_stroke_in_camera_view(&camera_view_boundary, stroke) {
+                    draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
+                }
             }
             for (_, text) in &state.text {
                 if let Some(pos) = text.position {
-                    drawing_camera.draw_text(
-                        &text.content,
-                        pos.x as i32,
-                        pos.y as i32,
-                        16,
-                        Color::BLACK,
-                    );
+                    if camera_view_boundary.check_collision_point_rec(pos) {
+                        drawing_camera.draw_text(
+                            &text.content,
+                            pos.x as i32,
+                            pos.y as i32,
+                            16,
+                            Color::BLACK,
+                        );
+                    }
                 }
             }
 
@@ -466,4 +491,13 @@ fn clamp_brush_size(brush: &mut Brush) {
     if brush.brush_size < 1.0 {
         brush.brush_size = 1.0;
     }
+}
+
+fn is_stroke_in_camera_view(camera_boundary: &Rectangle, stroke: &Stroke) -> bool {
+    for point in &stroke.points {
+        if camera_boundary.check_collision_point_rec(point) {
+            return true;
+        }
+    }
+    return false;
 }

@@ -1,6 +1,6 @@
+use crate::Stroke;
 use raylib::drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D};
 use raylib::math::Vector2;
-use crate::Stroke;
 
 pub fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke, brush_size: f32) {
     if stroke.points.len() == 0 {
