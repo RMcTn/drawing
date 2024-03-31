@@ -1,4 +1,5 @@
-use crate::Stroke;
+use crate::{Brush, Stroke};
+use raylib::color::Color;
 use raylib::drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D};
 use raylib::math::Vector2;
 
@@ -24,4 +25,17 @@ pub fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke
         // Half the brush size here since draw call wants radius
         drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color); // @SPEEDUP This is slow as fuck
     }
+}
+pub fn draw_brush_marker(
+    drawing: &mut RaylibMode2D<'_, RaylibDrawHandle<'_>>,
+    drawing_pos: Vector2,
+    brush: &Brush,
+) {
+    drawing.draw_circle_lines(
+        drawing_pos.x as i32,
+        drawing_pos.y as i32,
+        // Draw circle wants radius
+        brush.brush_size / 2.0,
+        Color::BLACK,
+    );
 }

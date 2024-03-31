@@ -4,203 +4,21 @@ use std::{
     time::{self, Instant},
 };
 
+use gui::{debug_draw_center_crosshair, draw_info_ui, is_clicking_gui};
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
 
-use crate::input::append_input_to_working_text;
+use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{get_char_and_key_pressed, process_key_down_events, process_key_pressed_events};
-use render::draw_stroke;
+use render::{draw_brush_marker, draw_stroke};
 use state::State;
 
+mod gui;
 mod input;
 mod persistence;
 mod render;
 mod state;
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Point {
-    x: f32,
-    y: f32,
-}
-
-impl Into<ffi::Vector2> for &Point {
-    fn into(self) -> ffi::Vector2 {
-        ffi::Vector2 {
-            x: self.x,
-            y: self.y,
-        }
-    }
-}
-
-impl Display for Point {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let display_str = format!("{},{}", self.x, self.y);
-        f.write_str(&display_str)
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-struct Stroke {
-    points: Vec<Point>,
-    color: Color,
-    brush_size: f32,
-    // TODO(reece): Could store the brush used in the stroke so we know the parameters of each
-    // stroke
-}
-
-impl Stroke {
-    fn new(color: Color, brush_size: f32) -> Self {
-        let default_num_of_points = 30;
-        Stroke {
-            points: Vec::with_capacity(default_num_of_points),
-            color,
-            brush_size,
-        }
-    }
-}
-
-// TODO: strokes and stroke_graveyard should have different key types probably
-type Strokes = SlotMap<DefaultKey, Stroke>;
-
-new_key_type! { struct TextKey; }
-#[derive(Debug, Deserialize, Serialize)]
-enum Action {
-    AddStroke(DefaultKey),
-    RemoveStroke(DefaultKey),
-    AddText(TextKey),
-    RemoveText(TextKey),
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Text {
-    content: String,
-    position: Option<Vector2>,
-}
-
-type CameraZoomPercentageDiff = i32;
-type DiffPerSecond = i32;
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-enum HoldCommand {
-    CameraZoom(CameraZoomPercentageDiff),
-    PanCameraHorizontal(DiffPerSecond),
-    PanCameraVertical(DiffPerSecond),
-    ChangeBrushSize(DiffPerSecond),
-    SpawnBrushStrokes,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-enum PressCommand {
-    Undo,
-    Redo,
-    UseTextTool,
-    ToggleDebugging,
-    Save,
-    SaveAs,
-    Load,
-    ChangeBrushType(BrushType),
-    PickBackgroundColor,
-}
-
-type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
-type HoldKeyMappings = Vec<(KeyboardKey, HoldCommand)>;
-
-struct Keymap {
-    // Does not support key combinations at the moment. Could be Vec<(Vec<KeyboardKey>, Command)>
-    // if we wanted
-    on_press: PressKeyMappings,
-    on_hold: HoldKeyMappings,
-}
-
-fn default_keymap() -> Keymap {
-    let on_press = PressKeyMappings::from([
-        (KeyboardKey::KEY_M, PressCommand::ToggleDebugging),
-        (KeyboardKey::KEY_O, PressCommand::Save),
-        (KeyboardKey::KEY_I, PressCommand::SaveAs),
-        (KeyboardKey::KEY_P, PressCommand::Load),
-        (KeyboardKey::KEY_Z, PressCommand::Undo),
-        (KeyboardKey::KEY_R, PressCommand::Redo),
-        (
-            KeyboardKey::KEY_E,
-            PressCommand::ChangeBrushType(BrushType::Deleting),
-        ),
-        (
-            KeyboardKey::KEY_Q,
-            PressCommand::ChangeBrushType(BrushType::Drawing),
-        ),
-        (KeyboardKey::KEY_T, PressCommand::UseTextTool),
-        (KeyboardKey::KEY_B, PressCommand::PickBackgroundColor),
-    ]);
-    let on_hold = HoldKeyMappings::from([
-        (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
-        (KeyboardKey::KEY_D, HoldCommand::PanCameraHorizontal(250)),
-        (KeyboardKey::KEY_S, HoldCommand::PanCameraVertical(250)),
-        (KeyboardKey::KEY_W, HoldCommand::PanCameraVertical(-250)),
-        (KeyboardKey::KEY_L, HoldCommand::CameraZoom(-5)),
-        (KeyboardKey::KEY_K, HoldCommand::CameraZoom(5)),
-        (
-            KeyboardKey::KEY_LEFT_BRACKET,
-            HoldCommand::ChangeBrushSize(-50),
-        ),
-        (
-            KeyboardKey::KEY_RIGHT_BRACKET,
-            HoldCommand::ChangeBrushSize(50),
-        ),
-        (KeyboardKey::KEY_H, HoldCommand::SpawnBrushStrokes),
-    ]);
-
-    return Keymap { on_press, on_hold };
-}
-
-struct Brush {
-    brush_type: BrushType,
-    brush_size: f32,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-enum BrushType {
-    Drawing,
-    Deleting,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-enum Tool {
-    Brush,
-    Text,
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum Mode {
-    UsingTool(Tool),
-    PickingBackgroundColor(GuiColorPickerInfo),
-    TypingText,
-}
-
-impl Default for Mode {
-    fn default() -> Self {
-        Self::UsingTool(Tool::Brush)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct GuiColorPickerInfo {
-    initiation_pos: Vector2,
-    bounds: Rectangle,
-    /// The given bounds for the rgui color picker doesn't include the color slider bar at the
-    /// side. Haven't looked too deeply into it, but the slider seems to be the same width
-    /// regardless of the size of the color picker.
-    picker_slider_x_padding: f32,
-}
-
-impl GuiColorPickerInfo {
-    /// Returns the bounds of the color picker, including the color slider bar at the side.
-    fn bounds_with_slider(&self) -> Rectangle {
-        let mut bounds_with_picker = self.bounds;
-        bounds_with_picker.width += self.picker_slider_x_padding;
-        return bounds_with_picker;
-    }
-}
 
 fn main() {
     let keymap = default_keymap();
@@ -480,27 +298,14 @@ fn main() {
                 }
             }
 
-            // Our brush marker
-            drawing_camera.draw_circle_lines(
-                drawing_pos.x as i32,
-                drawing_pos.y as i32,
-                // Draw circle wants radius
-                brush.brush_size / 2.0,
-                Color::BLACK,
-            );
+            draw_brush_marker(&mut drawing_camera, drawing_pos, &brush);
 
             if debugging {
-                drawing_camera.draw_line_ex(
-                    rvec2(camera.target.x, (-screen_height * 10) as f32),
-                    rvec2(camera.target.x, (screen_height * 10) as f32),
-                    5.0,
-                    Color::PURPLE,
-                );
-                drawing_camera.draw_line_ex(
-                    rvec2((-screen_width * 10) as f32, state.camera.target.y),
-                    rvec2((screen_width * 10) as f32, state.camera.target.y),
-                    5.0,
-                    Color::PURPLE,
+                debug_draw_center_crosshair(
+                    &mut drawing_camera,
+                    &state,
+                    screen_width,
+                    screen_height,
                 );
             }
         }
@@ -522,28 +327,10 @@ fn main() {
             }
         }
 
-        let brush_type_str = match &brush.brush_type {
-            BrushType::Drawing => "Drawing",
-            BrushType::Deleting => "Deleting",
-        };
-        let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
-        let zoom_str = format!("Zoom: {:.2}", state.camera.zoom);
-        drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
-        drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
-        drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
-
-        let mode_str = format!("Mode: {:?}", state.mode);
-        drawing.draw_text(&mode_str, 5, 90, 30, Color::RED);
+        draw_info_ui(&mut drawing, &state, &brush);
 
         if debugging {
-            let target_str = format!("target {:?}", state.camera.target);
-            drawing.draw_text(&target_str, 5, 120, 30, Color::RED);
-            let drawing_pos_str = format!("draw pos {:?}", drawing_pos);
-            drawing.draw_text(&drawing_pos_str, 5, 150, 30, Color::RED);
-            let number_of_strokes_str = format!("Total strokes: {}", state.strokes.len());
-            drawing.draw_text(&number_of_strokes_str, 5, 180, 30, Color::RED);
-            let fps_str = format!("FPS: {}", current_fps);
-            drawing.draw_text(&fps_str, 5, 210, 30, Color::RED);
+            debug_draw_info(&mut drawing, &state, drawing_pos, current_fps);
         }
 
         let elapsed = start_time.elapsed();
@@ -598,6 +385,186 @@ fn is_stroke_in_camera_view(camera_boundary: &Rectangle, stroke: &Stroke) -> boo
     return false;
 }
 
-fn is_clicking_gui(mouse_pos: Vector2, bounds: Rectangle) -> bool {
-    return bounds.check_collision_point_rec(mouse_pos);
+#[derive(Debug, Deserialize, Serialize)]
+struct Point {
+    x: f32,
+    y: f32,
+}
+
+impl Into<ffi::Vector2> for &Point {
+    fn into(self) -> ffi::Vector2 {
+        ffi::Vector2 {
+            x: self.x,
+            y: self.y,
+        }
+    }
+}
+
+impl Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let display_str = format!("{},{}", self.x, self.y);
+        f.write_str(&display_str)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+struct Stroke {
+    points: Vec<Point>,
+    color: Color,
+    brush_size: f32,
+    // TODO(reece): Could store the brush used in the stroke so we know the parameters of each
+    // stroke
+}
+
+impl Stroke {
+    fn new(color: Color, brush_size: f32) -> Self {
+        let default_num_of_points = 30;
+        Stroke {
+            points: Vec::with_capacity(default_num_of_points),
+            color,
+            brush_size,
+        }
+    }
+}
+
+// TODO: strokes and stroke_graveyard should have different key types probably
+type Strokes = SlotMap<DefaultKey, Stroke>;
+
+new_key_type! { struct TextKey; }
+#[derive(Debug, Deserialize, Serialize)]
+enum Action {
+    AddStroke(DefaultKey),
+    RemoveStroke(DefaultKey),
+    AddText(TextKey),
+    RemoveText(TextKey),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Text {
+    content: String,
+    position: Option<Vector2>,
+}
+
+type CameraZoomPercentageDiff = i32;
+type DiffPerSecond = i32;
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum HoldCommand {
+    CameraZoom(CameraZoomPercentageDiff),
+    PanCameraHorizontal(DiffPerSecond),
+    PanCameraVertical(DiffPerSecond),
+    ChangeBrushSize(DiffPerSecond),
+    SpawnBrushStrokes,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum PressCommand {
+    Undo,
+    Redo,
+    UseTextTool,
+    ToggleDebugging,
+    Save,
+    SaveAs,
+    Load,
+    ChangeBrushType(BrushType),
+    PickBackgroundColor,
+}
+
+type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
+type HoldKeyMappings = Vec<(KeyboardKey, HoldCommand)>;
+
+struct Keymap {
+    // Does not support key combinations at the moment. Could be Vec<(Vec<KeyboardKey>, Command)>
+    // if we wanted
+    on_press: PressKeyMappings,
+    on_hold: HoldKeyMappings,
+}
+
+fn default_keymap() -> Keymap {
+    let on_press = PressKeyMappings::from([
+        (KeyboardKey::KEY_M, PressCommand::ToggleDebugging),
+        (KeyboardKey::KEY_O, PressCommand::Save),
+        (KeyboardKey::KEY_I, PressCommand::SaveAs),
+        (KeyboardKey::KEY_P, PressCommand::Load),
+        (KeyboardKey::KEY_Z, PressCommand::Undo),
+        (KeyboardKey::KEY_R, PressCommand::Redo),
+        (
+            KeyboardKey::KEY_E,
+            PressCommand::ChangeBrushType(BrushType::Deleting),
+        ),
+        (
+            KeyboardKey::KEY_Q,
+            PressCommand::ChangeBrushType(BrushType::Drawing),
+        ),
+        (KeyboardKey::KEY_T, PressCommand::UseTextTool),
+        (KeyboardKey::KEY_B, PressCommand::PickBackgroundColor),
+    ]);
+    let on_hold = HoldKeyMappings::from([
+        (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
+        (KeyboardKey::KEY_D, HoldCommand::PanCameraHorizontal(250)),
+        (KeyboardKey::KEY_S, HoldCommand::PanCameraVertical(250)),
+        (KeyboardKey::KEY_W, HoldCommand::PanCameraVertical(-250)),
+        (KeyboardKey::KEY_L, HoldCommand::CameraZoom(-5)),
+        (KeyboardKey::KEY_K, HoldCommand::CameraZoom(5)),
+        (
+            KeyboardKey::KEY_LEFT_BRACKET,
+            HoldCommand::ChangeBrushSize(-50),
+        ),
+        (
+            KeyboardKey::KEY_RIGHT_BRACKET,
+            HoldCommand::ChangeBrushSize(50),
+        ),
+        (KeyboardKey::KEY_H, HoldCommand::SpawnBrushStrokes),
+    ]);
+
+    return Keymap { on_press, on_hold };
+}
+
+struct Brush {
+    brush_type: BrushType,
+    brush_size: f32,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+enum BrushType {
+    Drawing,
+    Deleting,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+enum Tool {
+    Brush,
+    Text,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum Mode {
+    UsingTool(Tool),
+    PickingBackgroundColor(GuiColorPickerInfo),
+    TypingText,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::UsingTool(Tool::Brush)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct GuiColorPickerInfo {
+    initiation_pos: Vector2,
+    bounds: Rectangle,
+    /// The given bounds for the rgui color picker doesn't include the color slider bar at the
+    /// side. Haven't looked too deeply into it, but the slider seems to be the same width
+    /// regardless of the size of the color picker.
+    picker_slider_x_padding: f32,
+}
+
+impl GuiColorPickerInfo {
+    /// Returns the bounds of the color picker, including the color slider bar at the side.
+    fn bounds_with_slider(&self) -> Rectangle {
+        let mut bounds_with_picker = self.bounds;
+        bounds_with_picker.width += self.picker_slider_x_padding;
+        return bounds_with_picker;
+    }
 }
