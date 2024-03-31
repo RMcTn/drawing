@@ -1,12 +1,21 @@
 use std::path::PathBuf;
 
-use raylib::camera::Camera2D;
 use raylib::check_collision_circles;
 use raylib::math::Vector2;
+use raylib::{camera::Camera2D, color::Color};
 use serde::{Deserialize, Serialize};
 use slotmap::{DefaultKey, SlotMap};
 
 use crate::{Action, Stroke, Strokes, Text, TextKey};
+
+#[derive(Deserialize, Serialize)]
+pub struct BackgroundColor(pub Color);
+
+impl Default for BackgroundColor {
+    fn default() -> Self {
+        BackgroundColor(Color::WHITE)
+    }
+}
 
 #[derive(Default, Deserialize, Serialize)]
 pub struct State {
@@ -20,6 +29,7 @@ pub struct State {
     #[serde(with = "Camera2DDef")]
     #[serde(default)]
     pub camera: Camera2D,
+    pub background_color: BackgroundColor,
 }
 
 impl State {

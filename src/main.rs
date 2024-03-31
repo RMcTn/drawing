@@ -214,6 +214,7 @@ fn main() {
         text_graveyard: SlotMap::with_key(),
         output_path: None,
         camera,
+        background_color: Default::default(),
     };
     let mut current_tool = Tool::Brush;
     let mut current_brush_color = Color::BLACK;
@@ -390,7 +391,7 @@ fn main() {
         {
             let mut drawing_camera = drawing.begin_mode2D(state.camera);
 
-            drawing_camera.clear_background(Color::WHITE);
+            drawing_camera.clear_background(state.background_color.0);
             for (_, stroke) in &state.strokes {
                 if is_stroke_in_camera_view(&camera_view_boundary, stroke) {
                     draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
