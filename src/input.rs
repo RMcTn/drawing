@@ -4,7 +4,9 @@ use raylib::{get_random_value, RaylibHandle};
 
 use crate::persistence::{save, save_with_file_picker};
 use crate::state::State;
-use crate::{persistence, Brush, HoldCommand, Keymap, Point, PressCommand, Stroke, Text, Tool};
+use crate::{
+    persistence, Brush, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Tool,
+};
 
 pub fn process_key_down_events(
     keymap: &Keymap,
@@ -66,7 +68,6 @@ pub fn process_key_pressed_events(
     rl: &mut RaylibHandle,
     brush: &mut Brush,
     mut state: &mut State,
-    current_tool: &mut Tool,
 ) {
     for (key, command) in keymap.on_press.iter() {
         if rl.is_key_pressed(*key) {
@@ -93,7 +94,6 @@ pub fn process_key_pressed_events(
                     persistence::load_with_file_picker(&mut state);
                 }
                 Undo => {
-                    // TODO: Undo/Redo will need reworked for text mode
                     state.undo();
                 }
                 Redo => {
@@ -101,10 +101,16 @@ pub fn process_key_pressed_events(
                 }
                 // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
                 // the working stroke off when changing brush type
-                ChangeBrushType(new_type) => brush.brush_type = *new_type,
+                ChangeBrushType(new_type) => {
+                    state.mode = Mode::UsingTool(Tool::Brush);
+                    brush.brush_type = *new_type;
+                }
                 UseTextTool => {
-                    *current_tool = Tool::Text;
+                    state.mode = Mode::UsingTool(Tool::Text);
                     // TODO: Exit text mode without 'saving'
+                }
+                PickBackgroundColor => {
+                    todo!("Background color picking not implemented yet");
                 }
             }
         }

@@ -82,12 +82,6 @@ type CameraZoomPercentageDiff = i32;
 type DiffPerSecond = i32;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-enum Command {
-    Hold(HoldCommand),
-    Press(PressCommand),
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
 enum HoldCommand {
     CameraZoom(CameraZoomPercentageDiff),
     PanCameraHorizontal(DiffPerSecond),
@@ -106,6 +100,7 @@ enum PressCommand {
     SaveAs,
     Load,
     ChangeBrushType(BrushType),
+    PickBackgroundColor,
 }
 
 type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
@@ -135,6 +130,7 @@ fn default_keymap() -> Keymap {
             PressCommand::ChangeBrushType(BrushType::Drawing),
         ),
         (KeyboardKey::KEY_T, PressCommand::UseTextTool),
+        (KeyboardKey::KEY_B, PressCommand::PickBackgroundColor),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
@@ -172,6 +168,19 @@ enum BrushType {
 enum Tool {
     Brush,
     Text,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+enum Mode {
+    UsingTool(Tool),
+    PickingBackgroundColor,
+    TypingText,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::UsingTool(Tool::Brush)
+    }
 }
 
 struct GuiColorPickerInfo {
@@ -222,6 +231,9 @@ fn main() {
         brush_type: BrushType::Drawing,
         brush_size: initial_brush_size,
     };
+
+    let mut current_brush_color = Color::BLACK;
+
     let mut state = State {
         strokes: SlotMap::new(),
         undo_actions: Vec::new(),
@@ -232,16 +244,16 @@ fn main() {
         output_path: None,
         camera,
         background_color: Default::default(),
+        color_picker_info: None,
+        mode: Mode::UsingTool(Tool::Brush),
     };
-    let mut current_tool = Tool::Brush;
-    let mut current_brush_color = Color::BLACK;
 
     let mut is_drawing = false;
     let mut working_stroke = Stroke::new(current_brush_color, brush.brush_size);
     let mut working_text: Option<Text> = None;
     let mut last_mouse_pos = rl.get_mouse_position();
 
-    let mut color_picker_info = None;
+    let mut color_picker_info: Option<GuiColorPickerInfo> = None;
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -265,51 +277,117 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, state.camera);
 
-        if current_tool == Tool::Text {
-            loop {
-                let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
-                let ch = char_and_key_pressed.0;
-                let key = char_and_key_pressed.1;
-                if ch.is_none() && key.is_none() {
-                    break;
-                }
+        match state.mode {
+            Mode::UsingTool(tool) => match tool {
+                Tool::Brush => {
+                    if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                        if let Some(picker_info) = &color_picker_info {
+                            if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
+                                color_picker_info = None;
+                            }
+                        } else {
+                            if brush.brush_type == BrushType::Deleting {
+                                let strokes_to_delete =
+                                    state.strokes_within_point(drawing_pos, brush.brush_size);
+                                state.delete_strokes(strokes_to_delete);
+                            } else {
+                                // Drawing
+                                if !is_drawing {
+                                    working_stroke =
+                                        Stroke::new(current_brush_color, brush.brush_size);
+                                    is_drawing = true;
+                                }
 
-                let ch = ch.unwrap();
-                let key = key.unwrap();
-
-                append_input_to_working_text(ch, &mut working_text);
-
-                if key == KeyboardKey::KEY_ENTER {
-                    dbg!("Exiting text tool");
-                    current_tool = Tool::Brush;
-                    if let Some(text) = working_text {
-                        if !text.content.is_empty() {
-                            state.add_text_with_undo(text);
+                                let point = Point {
+                                    x: drawing_pos.x,
+                                    y: drawing_pos.y,
+                                };
+                                working_stroke.points.push(point);
+                            }
                         }
                     }
+                    if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+                        // Finished drawing
+                        // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
+                        // the brush stroke unless we change back to brush mode
+                        if is_drawing {
+                            state.add_stroke_with_undo(working_stroke);
+                            working_stroke = Stroke::new(current_brush_color, brush.brush_size);
+                        }
+                        is_drawing = false;
+                    }
 
-                    working_text = None;
+                    if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
+                        let picker_width = 100;
+                        let picker_height = 100;
+                        color_picker_info = Some(GuiColorPickerInfo {
+                            initiation_pos: mouse_pos,
+                            bounds: rrect(
+                                mouse_pos.x - (picker_width as f32 / 2.0),
+                                mouse_pos.y - (picker_height as f32 / 2.0),
+                                picker_width,
+                                picker_height,
+                            ),
+                            picker_slider_x_padding: 30.0,
+                        });
+                    }
                 }
-                // TODO: Handle holding in backspace, probably a 'delay' between each removal
-                // if backspace is held
-                if key == KeyboardKey::KEY_BACKSPACE {
-                    dbg!("Backspace is down");
-                    if let Some(text) = working_text.as_mut() {
-                        let _removed_char = text.content.pop();
+                Tool::Text => {
+                    if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                        dbg!("Hit left click on text tool");
+                        // Start text
+                        if working_text.is_none() {
+                            working_text = Some(Text {
+                                content: "".to_string(),
+                                position: Some(drawing_pos),
+                            });
+                        }
+                        state.mode = Mode::TypingText;
+                    }
+                }
+            },
+            Mode::PickingBackgroundColor => todo!(),
+            Mode::TypingText => {
+                loop {
+                    let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
+                    let ch = char_and_key_pressed.0;
+                    let key = char_and_key_pressed.1;
+                    if ch.is_none() && key.is_none() {
+                        break;
+                    }
+
+                    let key = key.unwrap();
+
+                    if let Some(ch) = ch {
+                        append_input_to_working_text(ch, &mut working_text);
+                    }
+
+                    if key == KeyboardKey::KEY_ENTER {
+                        dbg!("Exiting text tool");
+                        if let Some(text) = working_text {
+                            if !text.content.is_empty() {
+                                state.add_text_with_undo(text);
+                            }
+                        }
+
+                        working_text = None;
+                        state.mode = Mode::UsingTool(Tool::Brush);
+                        break;
+                    }
+                    // TODO: Handle holding in backspace, probably a 'delay' between each removal
+                    // if backspace is held
+                    if key == KeyboardKey::KEY_BACKSPACE {
+                        dbg!("Backspace is down");
+                        if let Some(text) = working_text.as_mut() {
+                            let _removed_char = text.content.pop();
+                        }
                     }
                 }
             }
         }
 
-        if current_tool != Tool::Text {
-            process_key_pressed_events(
-                &keymap,
-                &mut debugging,
-                &mut rl,
-                &mut brush,
-                &mut state,
-                &mut current_tool,
-            );
+        if state.mode != Mode::TypingText {
+            process_key_pressed_events(&keymap, &mut debugging, &mut rl, &mut brush, &mut state);
             process_key_down_events(
                 &keymap,
                 screen_width,
@@ -321,63 +399,9 @@ fn main() {
             );
         }
 
-        if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON)
-            && current_tool == Tool::Brush
-        {
-            let picker_width = 100;
-            let picker_height = 100;
-            color_picker_info = Some(GuiColorPickerInfo {
-                initiation_pos: mouse_pos,
-                bounds: rrect(
-                    mouse_pos.x - (picker_width as f32 / 2.0),
-                    mouse_pos.y - (picker_height as f32 / 2.0),
-                    picker_width,
-                    picker_height,
-                ),
-                picker_slider_x_padding: 30.0,
-            });
-        }
-
         // TODO: Configurable mouse buttons
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
             apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
-        }
-
-        if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
-            if let Some(picker_info) = &color_picker_info {
-                if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
-                    color_picker_info = None;
-                }
-            } else {
-                if brush.brush_type == BrushType::Deleting {
-                    let strokes_to_delete =
-                        state.strokes_within_point(drawing_pos, brush.brush_size);
-                    state.delete_strokes(strokes_to_delete);
-                } else {
-                    // Drawing
-                    if !is_drawing {
-                        working_stroke = Stroke::new(current_brush_color, brush.brush_size);
-                        is_drawing = true;
-                    }
-
-                    let point = Point {
-                        x: drawing_pos.x,
-                        y: drawing_pos.y,
-                    };
-                    working_stroke.points.push(point);
-                }
-            }
-        }
-
-        if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
-            // Finished drawing
-            // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
-            // the brush stroke unless we change back to brush mode
-            if is_drawing {
-                state.add_stroke_with_undo(working_stroke);
-                working_stroke = Stroke::new(current_brush_color, brush.brush_size);
-            }
-            is_drawing = false;
         }
 
         let mouse_wheel_diff = rl.get_mouse_wheel_move();
@@ -494,8 +518,8 @@ fn main() {
         drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
         drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
 
-        let tool_str = format!("Tool: {:?}", current_tool);
-        drawing.draw_text(&tool_str, 5, 90, 30, Color::RED);
+        let mode_str = format!("Mode: {:?}", state.mode);
+        drawing.draw_text(&mode_str, 5, 90, 30, Color::RED);
 
         if debugging {
             let target_str = format!("target {:?}", state.camera.target);

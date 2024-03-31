@@ -6,7 +6,7 @@ use raylib::{camera::Camera2D, color::Color};
 use serde::{Deserialize, Serialize};
 use slotmap::{DefaultKey, SlotMap};
 
-use crate::{Action, Stroke, Strokes, Text, TextKey};
+use crate::{Action, GuiColorPickerInfo, Mode, Stroke, Strokes, Text, TextKey};
 
 #[derive(Deserialize, Serialize)]
 pub struct BackgroundColor(pub Color);
@@ -30,6 +30,10 @@ pub struct State {
     #[serde(default)]
     pub camera: Camera2D,
     pub background_color: BackgroundColor,
+    #[serde(skip)]
+    pub color_picker_info: Option<GuiColorPickerInfo>,
+    #[serde(skip)] // Don't think we want to save mode yet
+    pub mode: Mode,
 }
 
 impl State {
@@ -209,6 +213,7 @@ impl State {
 
 #[derive(Deserialize, Serialize)]
 #[serde(remote = "Camera2D")]
+/// Exists so we can serialize the raylib camera
 struct Camera2DDef {
     offset: Vector2,
     target: Vector2,
