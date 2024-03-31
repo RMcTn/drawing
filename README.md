@@ -57,8 +57,8 @@ Two types of key inputs:
 | Input | Action |
 |-----|--------|
 | Left click | Draw |
-| Right click | Pan |
-| Middle click | Delete mode |
+| Right click | Color picker |
+| Middle click | Pan |
 | Mouse wheel | Zoom in/Zoom out |
 | Ctrl + Mouse wheel | Change brush size |
 

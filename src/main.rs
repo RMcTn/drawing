@@ -304,11 +304,6 @@ fn main() {
             );
         }
 
-        // TODO: Re-enable camera drag
-        // if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
-        //     apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
-        // }
-
         if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON)
             && current_tool == Tool::Brush
         {
@@ -326,10 +321,9 @@ fn main() {
             });
         }
 
-        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
-        {
-            let strokes_to_delete = state.strokes_within_point(drawing_pos, brush.brush_size);
-            state.delete_strokes(strokes_to_delete);
+        // TODO: Configurable mouse buttons
+        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
+            apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
