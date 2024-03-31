@@ -110,7 +110,7 @@ pub fn process_key_pressed_events(
                     // TODO: Exit text mode without 'saving'
                 }
                 PickBackgroundColor => {
-                    todo!("Background color picking not implemented yet");
+                    state.mode = Mode::PickingBackgroundColor;
                 }
             }
         }

@@ -244,7 +244,6 @@ fn main() {
         output_path: None,
         camera,
         background_color: Default::default(),
-        color_picker_info: None,
         mode: Mode::UsingTool(Tool::Brush),
     };
 
@@ -253,7 +252,7 @@ fn main() {
     let mut working_text: Option<Text> = None;
     let mut last_mouse_pos = rl.get_mouse_position();
 
-    let mut color_picker_info: Option<GuiColorPickerInfo> = None;
+    let mut brush_color_picker_info: Option<GuiColorPickerInfo> = None;
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -277,13 +276,21 @@ fn main() {
         let mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(mouse_pos, state.camera);
 
+        let background_color_picker = GuiColorPickerInfo {
+            initiation_pos: rvec2(0, 0),
+            bounds: rrect(100, 100, 100, 100),
+            picker_slider_x_padding: 50.0,
+        };
+
         match state.mode {
             Mode::UsingTool(tool) => match tool {
                 Tool::Brush => {
+                    // TODO: FIXME: Quite easy to accidentally draw when coming out of background
+                    // color picker
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                        if let Some(picker_info) = &color_picker_info {
+                        if let Some(picker_info) = &brush_color_picker_info {
                             if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
-                                color_picker_info = None;
+                                brush_color_picker_info = None;
                             }
                         } else {
                             if brush.brush_type == BrushType::Deleting {
@@ -320,7 +327,7 @@ fn main() {
                     if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
                         let picker_width = 100;
                         let picker_height = 100;
-                        color_picker_info = Some(GuiColorPickerInfo {
+                        brush_color_picker_info = Some(GuiColorPickerInfo {
                             initiation_pos: mouse_pos,
                             bounds: rrect(
                                 mouse_pos.x - (picker_width as f32 / 2.0),
@@ -346,7 +353,13 @@ fn main() {
                     }
                 }
             },
-            Mode::PickingBackgroundColor => todo!(),
+            Mode::PickingBackgroundColor => {
+                if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if !is_clicking_gui(mouse_pos, background_color_picker.bounds_with_slider()) {
+                        state.mode = Mode::UsingTool(Tool::Brush);
+                    }
+                }
+            }
             Mode::TypingText => {
                 loop {
                     let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
@@ -496,7 +509,12 @@ fn main() {
             }
         }
 
-        if let Some(picker_info) = &mut color_picker_info {
+        if state.mode == Mode::PickingBackgroundColor {
+            state.background_color.0 =
+                drawing.gui_color_picker(rrect(100, 100, 100, 100), state.background_color.0);
+        }
+
+        if let Some(picker_info) = &mut brush_color_picker_info {
             // TODO: Scale the GUI?
             if !is_drawing {
                 // Hide when not drawing
