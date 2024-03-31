@@ -4,10 +4,7 @@ use std::{
     time::{self, Instant},
 };
 
-use raylib::{
-    ffi::DrawBoundingBox,
-    prelude::{Vector2, *},
-};
+use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
 
@@ -160,6 +157,10 @@ enum Tool {
     Text,
 }
 
+struct GuiColorPickerInfo {
+    initiation_pos: Vector2,
+}
+
 fn main() {
     let keymap = default_keymap();
     let mut debugging = false;
@@ -203,11 +204,14 @@ fn main() {
         camera,
     };
     let mut current_tool = Tool::Brush;
+    let mut current_brush_color = Color::BLACK;
 
     let mut is_drawing = false;
-    let mut working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
+    let mut working_stroke = Stroke::new(current_brush_color, brush.brush_size);
     let mut working_text: Option<Text> = None;
     let mut last_mouse_pos = rl.get_mouse_position();
+
+    let mut color_picker_info = None;
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -288,8 +292,19 @@ fn main() {
             );
         }
 
-        if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
-            apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
+        // if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
+        //     apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
+        // }
+
+        if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON)
+            && current_tool == Tool::Brush
+        {
+            // Open a GUI at this point
+            color_picker_info = Some(GuiColorPickerInfo {
+                initiation_pos: mouse_pos,
+            });
+            // Should set to false once the a colour is selected, or the gui is clicked off (or
+            // escape as well?)
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
@@ -305,14 +320,7 @@ fn main() {
             } else {
                 // Drawing
                 if !is_drawing {
-                    let brush_color = match &brush.brush_type {
-                        // TODO(reece): Will want these colours to be dynamic (whatever user
-                        // picked (drawing)/whatever bg colour is (erasing))
-                        BrushType::Drawing => Color::BLACK,
-                        BrushType::Deleting => Color::RED,
-                    };
-
-                    working_stroke = Stroke::new(brush_color, brush.brush_size);
+                    working_stroke = Stroke::new(current_brush_color, brush.brush_size);
                     is_drawing = true;
                 }
 
@@ -329,7 +337,7 @@ fn main() {
             // the brush stroke unless we change back to brush mode
             if is_drawing {
                 state.add_stroke_with_undo(working_stroke);
-                working_stroke = Stroke::new(Color::BLACK, brush.brush_size);
+                working_stroke = Stroke::new(current_brush_color, brush.brush_size);
             }
             is_drawing = false;
         }
@@ -426,6 +434,21 @@ fn main() {
             }
         }
 
+        if let Some(picker_info) = &mut color_picker_info {
+            // TODO: Don't create stroke if color picker is clicked on (i.e don't create strokes
+            // behind the colour picker)
+            // TODO: Close color picker if clicked off(?)
+            let picker_width = 100;
+            let picker_height = 100;
+            let bounds = rrect(
+                picker_info.initiation_pos.x - (picker_width as f32 / 2.0),
+                picker_info.initiation_pos.y - (picker_height as f32 / 2.0),
+                picker_width,
+                picker_height,
+            );
+            current_brush_color = drawing.gui_color_picker(bounds, current_brush_color);
+        }
+
         let brush_type_str = match &brush.brush_type {
             BrushType::Drawing => "Drawing",
             BrushType::Deleting => "Deleting",
@@ -467,7 +490,7 @@ fn apply_mouse_drag_to_camera(mouse_pos: Vector2, last_mouse_pos: Vector2, camer
 
 fn apply_mouse_wheel_zoom(mouse_wheel_diff: f32, camera: &mut Camera2D) {
     let mouse_wheel_zoom_dampening = 0.065;
-    // This stuff "works" but it's an awful experience. Seems way worse when the window is a
+    // TODO: FIXME: This stuff "works" but it's an awful experience. Seems way worse when the window is a
     // smaller portion of the overall screen size due to scaling
     camera.zoom += mouse_wheel_diff * mouse_wheel_zoom_dampening;
 }
