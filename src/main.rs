@@ -170,10 +170,10 @@ enum Tool {
     Text,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Mode {
     UsingTool(Tool),
-    PickingBackgroundColor,
+    PickingBackgroundColor(GuiColorPickerInfo),
     TypingText,
 }
 
@@ -183,6 +183,7 @@ impl Default for Mode {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct GuiColorPickerInfo {
     initiation_pos: Vector2,
     bounds: Rectangle,
@@ -245,6 +246,7 @@ fn main() {
         camera,
         background_color: Default::default(),
         mode: Mode::UsingTool(Tool::Brush),
+        mouse_pos: rvec2(0, 0),
     };
 
     let mut is_drawing = false;
@@ -273,14 +275,8 @@ fn main() {
         screen_height = rl.get_screen_height();
         state.camera.offset = rvec2(screen_width / 2, screen_height / 2);
 
-        let mouse_pos = rl.get_mouse_position();
-        let drawing_pos = rl.get_screen_to_world2D(mouse_pos, state.camera);
-
-        let background_color_picker = GuiColorPickerInfo {
-            initiation_pos: rvec2(0, 0),
-            bounds: rrect(100, 100, 100, 100),
-            picker_slider_x_padding: 50.0,
-        };
+        state.mouse_pos = rl.get_mouse_position();
+        let drawing_pos = rl.get_screen_to_world2D(state.mouse_pos, state.camera);
 
         match state.mode {
             Mode::UsingTool(tool) => match tool {
@@ -289,7 +285,7 @@ fn main() {
                     // color picker
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
                         if let Some(picker_info) = &brush_color_picker_info {
-                            if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
+                            if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
                                 brush_color_picker_info = None;
                             }
                         } else {
@@ -328,10 +324,10 @@ fn main() {
                         let picker_width = 100;
                         let picker_height = 100;
                         brush_color_picker_info = Some(GuiColorPickerInfo {
-                            initiation_pos: mouse_pos,
+                            initiation_pos: state.mouse_pos,
                             bounds: rrect(
-                                mouse_pos.x - (picker_width as f32 / 2.0),
-                                mouse_pos.y - (picker_height as f32 / 2.0),
+                                state.mouse_pos.x - (picker_width as f32 / 2.0),
+                                state.mouse_pos.y - (picker_height as f32 / 2.0),
                                 picker_width,
                                 picker_height,
                             ),
@@ -353,9 +349,9 @@ fn main() {
                     }
                 }
             },
-            Mode::PickingBackgroundColor => {
+            Mode::PickingBackgroundColor(color_picker) => {
                 if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
-                    if !is_clicking_gui(mouse_pos, background_color_picker.bounds_with_slider()) {
+                    if !is_clicking_gui(state.mouse_pos, color_picker.bounds_with_slider()) {
                         state.mode = Mode::UsingTool(Tool::Brush);
                     }
                 }
@@ -414,7 +410,7 @@ fn main() {
 
         // TODO: Configurable mouse buttons
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
-            apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
+            apply_mouse_drag_to_camera(state.mouse_pos, last_mouse_pos, &mut state.camera);
         }
 
         let mouse_wheel_diff = rl.get_mouse_wheel_move();
@@ -430,7 +426,7 @@ fn main() {
 
         clamp_camera_zoom(&mut state.camera);
 
-        last_mouse_pos = mouse_pos;
+        last_mouse_pos = state.mouse_pos;
 
         let camera_view_boundary = rrect(
             state.camera.offset.x / state.camera.zoom + state.camera.target.x
@@ -509,9 +505,9 @@ fn main() {
             }
         }
 
-        if state.mode == Mode::PickingBackgroundColor {
+        if let Mode::PickingBackgroundColor(color_picker) = state.mode {
             state.background_color.0 =
-                drawing.gui_color_picker(rrect(100, 100, 100, 100), state.background_color.0);
+                drawing.gui_color_picker(color_picker.bounds, state.background_color.0);
         }
 
         if let Some(picker_info) = &mut brush_color_picker_info {

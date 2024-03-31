@@ -1,5 +1,6 @@
 use raylib::color::Color;
 use raylib::consts::KeyboardKey;
+use raylib::math::rrect;
 use raylib::{get_random_value, RaylibHandle};
 
 use crate::persistence::{save, save_with_file_picker};
@@ -110,7 +111,19 @@ pub fn process_key_pressed_events(
                     // TODO: Exit text mode without 'saving'
                 }
                 PickBackgroundColor => {
-                    state.mode = Mode::PickingBackgroundColor;
+                    let picker_width = 100;
+                    let picker_height = 100;
+
+                    state.mode = Mode::PickingBackgroundColor(crate::GuiColorPickerInfo {
+                        initiation_pos: state.mouse_pos,
+                        bounds: rrect(
+                            state.mouse_pos.x - (picker_width as f32 / 2.0),
+                            state.mouse_pos.y - (picker_height as f32 / 2.0),
+                            picker_width,
+                            picker_height,
+                        ),
+                        picker_slider_x_padding: 50.0,
+                    });
                 }
             }
         }

@@ -32,6 +32,7 @@ pub struct State {
     pub background_color: BackgroundColor,
     #[serde(skip)] // Don't think we want to save mode yet
     pub mode: Mode,
+    pub mouse_pos: Vector2,
 }
 
 impl State {
