@@ -159,6 +159,7 @@ enum Tool {
 
 struct GuiColorPickerInfo {
     initiation_pos: Vector2,
+    bounds: Rectangle,
 }
 
 fn main() {
@@ -292,6 +293,7 @@ fn main() {
             );
         }
 
+        // TODO: Re-enable camera drag
         // if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
         //     apply_mouse_drag_to_camera(mouse_pos, last_mouse_pos, &mut state.camera);
         // }
@@ -299,12 +301,17 @@ fn main() {
         if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON)
             && current_tool == Tool::Brush
         {
-            // Open a GUI at this point
+            let picker_width = 100;
+            let picker_height = 100;
             color_picker_info = Some(GuiColorPickerInfo {
                 initiation_pos: mouse_pos,
+                bounds: rrect(
+                    mouse_pos.x - (picker_width as f32 / 2.0),
+                    mouse_pos.y - (picker_height as f32 / 2.0),
+                    picker_width,
+                    picker_height,
+                ),
             });
-            // Should set to false once the a colour is selected, or the gui is clicked off (or
-            // escape as well?)
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) && current_tool == Tool::Brush
@@ -331,6 +338,7 @@ fn main() {
                 working_stroke.points.push(point);
             }
         }
+
         if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
             // Finished drawing
             // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
@@ -438,15 +446,12 @@ fn main() {
             // TODO: Don't create stroke if color picker is clicked on (i.e don't create strokes
             // behind the colour picker)
             // TODO: Close color picker if clicked off(?)
-            let picker_width = 100;
-            let picker_height = 100;
-            let bounds = rrect(
-                picker_info.initiation_pos.x - (picker_width as f32 / 2.0),
-                picker_info.initiation_pos.y - (picker_height as f32 / 2.0),
-                picker_width,
-                picker_height,
-            );
-            current_brush_color = drawing.gui_color_picker(bounds, current_brush_color);
+            // TODO: Scale the GUI?
+            if !is_drawing {
+                // Hide when not drawing
+                current_brush_color =
+                    drawing.gui_color_picker(picker_info.bounds, current_brush_color);
+            }
         }
 
         let brush_type_str = match &brush.brush_type {
