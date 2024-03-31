@@ -333,30 +333,28 @@ fn main() {
         }
 
         if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) && current_tool == Tool::Brush {
-            if brush.brush_type == BrushType::Deleting {
-                let strokes_to_delete = state.strokes_within_point(drawing_pos, brush.brush_size);
-                state.delete_strokes(strokes_to_delete);
+            if let Some(picker_info) = &color_picker_info {
+                if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
+                    color_picker_info = None;
+                }
             } else {
-                // Drawing
-                if !is_drawing {
-                    let mut should_start_drawing = false;
-                    if let Some(picker_info) = &color_picker_info {
-                        if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
-                            color_picker_info = None;
-                            should_start_drawing = true;
-                        }
-                    }
-                    if should_start_drawing {
+                if brush.brush_type == BrushType::Deleting {
+                    let strokes_to_delete =
+                        state.strokes_within_point(drawing_pos, brush.brush_size);
+                    state.delete_strokes(strokes_to_delete);
+                } else {
+                    // Drawing
+                    if !is_drawing {
                         working_stroke = Stroke::new(current_brush_color, brush.brush_size);
                         is_drawing = true;
                     }
-                }
 
-                let point = Point {
-                    x: drawing_pos.x,
-                    y: drawing_pos.y,
-                };
-                working_stroke.points.push(point);
+                    let point = Point {
+                        x: drawing_pos.x,
+                        y: drawing_pos.y,
+                    };
+                    working_stroke.points.push(point);
+                }
             }
         }
 
