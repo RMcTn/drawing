@@ -39,6 +39,7 @@ Two types of key inputs:
 | KEY_E | ChangeBrushType to deleting |
 | KEY_Q | ChangeBrushType to drawing |
 | KEY_T | Change to Text Tool |
+| KEY_B | Change background color |
 
 #### Hold keys
 | Key | Action |
