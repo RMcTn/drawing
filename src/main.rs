@@ -327,8 +327,16 @@ fn main() {
             } else {
                 // Drawing
                 if !is_drawing {
-                    working_stroke = Stroke::new(current_brush_color, brush.brush_size);
-                    is_drawing = true;
+                    let mut should_start_drawing = false;
+                    if let Some(color_picker_info) = &color_picker_info {
+                        if !is_clicking_gui(mouse_pos, color_picker_info.bounds) {
+                            should_start_drawing = true;
+                        }
+                    }
+                    if should_start_drawing {
+                        working_stroke = Stroke::new(current_brush_color, brush.brush_size);
+                        is_drawing = true;
+                    }
                 }
 
                 let point = Point {
@@ -443,8 +451,7 @@ fn main() {
         }
 
         if let Some(picker_info) = &mut color_picker_info {
-            // TODO: Don't create stroke if color picker is clicked on (i.e don't create strokes
-            // behind the colour picker)
+            // TODO: Don't draw when trying to select color bar scale
             // TODO: Close color picker if clicked off(?)
             // TODO: Scale the GUI?
             if !is_drawing {
@@ -528,4 +535,8 @@ fn is_stroke_in_camera_view(camera_boundary: &Rectangle, stroke: &Stroke) -> boo
         }
     }
     return false;
+}
+
+fn is_clicking_gui(mouse_pos: Vector2, bounds: Rectangle) -> bool {
+    return bounds.check_collision_point_rec(mouse_pos);
 }
