@@ -238,7 +238,6 @@ fn main() {
         // TODO(reece): Installable so it's searchable as a program
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
-        // TODO: Only draw strokes that are visible in the camera (if this isn't already happening)
 
         let start_time = Instant::now();
         screen_width = rl.get_screen_width();
@@ -456,8 +455,6 @@ fn main() {
         }
 
         if let Some(picker_info) = &mut color_picker_info {
-            // TODO: Don't draw when trying to select color bar scale
-            // TODO: Close color picker if clicked off(?)
             // TODO: Scale the GUI?
             if !is_drawing {
                 // Hide when not drawing
