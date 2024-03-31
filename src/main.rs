@@ -160,6 +160,19 @@ enum Tool {
 struct GuiColorPickerInfo {
     initiation_pos: Vector2,
     bounds: Rectangle,
+    /// The given bounds for the rgui color picker doesn't include the color slider bar at the
+    /// side. Haven't looked too deeply into it, but the slider seems to be the same width
+    /// regardless of the size of the color picker.
+    picker_slider_x_padding: f32,
+}
+
+impl GuiColorPickerInfo {
+    /// Returns the bounds of the color picker, including the color slider bar at the side.
+    fn bounds_with_slider(&self) -> Rectangle {
+        let mut bounds_with_picker = self.bounds;
+        bounds_with_picker.width += self.picker_slider_x_padding;
+        return bounds_with_picker;
+    }
 }
 
 fn main() {
@@ -174,8 +187,6 @@ fn main() {
         .resizable()
         .title("Window")
         .build();
-
-    // rl.set_target_fps(60);
 
     let target_fps = 60;
     let seconds_per_frame = 1.0 / target_fps as f32;
@@ -311,6 +322,7 @@ fn main() {
                     picker_width,
                     picker_height,
                 ),
+                picker_slider_x_padding: 30.0,
             });
         }
 
@@ -328,8 +340,9 @@ fn main() {
                 // Drawing
                 if !is_drawing {
                     let mut should_start_drawing = false;
-                    if let Some(color_picker_info) = &color_picker_info {
-                        if !is_clicking_gui(mouse_pos, color_picker_info.bounds) {
+                    if let Some(picker_info) = &color_picker_info {
+                        if !is_clicking_gui(mouse_pos, picker_info.bounds_with_slider()) {
+                            color_picker_info = None;
                             should_start_drawing = true;
                         }
                     }
@@ -458,6 +471,9 @@ fn main() {
                 // Hide when not drawing
                 current_brush_color =
                     drawing.gui_color_picker(picker_info.bounds, current_brush_color);
+            }
+            if debugging {
+                drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1, Color::GOLD);
             }
         }
 
