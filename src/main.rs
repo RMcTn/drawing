@@ -83,58 +83,75 @@ type DiffPerSecond = i32;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 enum Command {
+    Hold(HoldCommand),
+    Press(PressCommand),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum HoldCommand {
+    CameraZoom(CameraZoomPercentageDiff),
+    PanCameraHorizontal(DiffPerSecond),
+    PanCameraVertical(DiffPerSecond),
+    ChangeBrushSize(DiffPerSecond),
+    SpawnBrushStrokes,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum PressCommand {
+    Undo,
+    Redo,
+    UseTextTool,
+    ToggleDebugging,
     Save,
     SaveAs,
     Load,
     ChangeBrushType(BrushType),
-    ToggleDebugging,
-    PanCameraHorizontal(DiffPerSecond),
-    PanCameraVertical(DiffPerSecond),
-    Undo,
-    Redo,
-    ChangeBrushSize(DiffPerSecond),
-    CameraZoom(CameraZoomPercentageDiff),
-    SpawnBrushStrokes,
-    UseTextTool,
 }
 
-type KeyMappings = Vec<(KeyboardKey, Command)>;
+type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
+type HoldKeyMappings = Vec<(KeyboardKey, HoldCommand)>;
 
 struct Keymap {
     // Does not support key combinations at the moment. Could be Vec<(Vec<KeyboardKey>, Command)>
     // if we wanted
-    on_press: KeyMappings,
-    on_hold: KeyMappings,
+    on_press: PressKeyMappings,
+    on_hold: HoldKeyMappings,
 }
 
 fn default_keymap() -> Keymap {
-    let on_press = KeyMappings::from([
-        (KeyboardKey::KEY_M, Command::ToggleDebugging),
-        (KeyboardKey::KEY_O, Command::Save),
-        (KeyboardKey::KEY_I, Command::SaveAs),
-        (KeyboardKey::KEY_P, Command::Load),
-        (KeyboardKey::KEY_Z, Command::Undo),
-        (KeyboardKey::KEY_R, Command::Redo),
+    let on_press = PressKeyMappings::from([
+        (KeyboardKey::KEY_M, PressCommand::ToggleDebugging),
+        (KeyboardKey::KEY_O, PressCommand::Save),
+        (KeyboardKey::KEY_I, PressCommand::SaveAs),
+        (KeyboardKey::KEY_P, PressCommand::Load),
+        (KeyboardKey::KEY_Z, PressCommand::Undo),
+        (KeyboardKey::KEY_R, PressCommand::Redo),
         (
             KeyboardKey::KEY_E,
-            Command::ChangeBrushType(BrushType::Deleting),
+            PressCommand::ChangeBrushType(BrushType::Deleting),
         ),
         (
             KeyboardKey::KEY_Q,
-            Command::ChangeBrushType(BrushType::Drawing),
+            PressCommand::ChangeBrushType(BrushType::Drawing),
         ),
-        (KeyboardKey::KEY_T, Command::UseTextTool),
+        (KeyboardKey::KEY_T, PressCommand::UseTextTool),
     ]);
-    let on_hold = KeyMappings::from([
-        (KeyboardKey::KEY_A, Command::PanCameraHorizontal(-250)),
-        (KeyboardKey::KEY_D, Command::PanCameraHorizontal(250)),
-        (KeyboardKey::KEY_S, Command::PanCameraVertical(250)),
-        (KeyboardKey::KEY_W, Command::PanCameraVertical(-250)),
-        (KeyboardKey::KEY_L, Command::CameraZoom(-5)),
-        (KeyboardKey::KEY_K, Command::CameraZoom(5)),
-        (KeyboardKey::KEY_LEFT_BRACKET, Command::ChangeBrushSize(-50)),
-        (KeyboardKey::KEY_RIGHT_BRACKET, Command::ChangeBrushSize(50)),
-        (KeyboardKey::KEY_H, Command::SpawnBrushStrokes),
+    let on_hold = HoldKeyMappings::from([
+        (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
+        (KeyboardKey::KEY_D, HoldCommand::PanCameraHorizontal(250)),
+        (KeyboardKey::KEY_S, HoldCommand::PanCameraVertical(250)),
+        (KeyboardKey::KEY_W, HoldCommand::PanCameraVertical(-250)),
+        (KeyboardKey::KEY_L, HoldCommand::CameraZoom(-5)),
+        (KeyboardKey::KEY_K, HoldCommand::CameraZoom(5)),
+        (
+            KeyboardKey::KEY_LEFT_BRACKET,
+            HoldCommand::ChangeBrushSize(-50),
+        ),
+        (
+            KeyboardKey::KEY_RIGHT_BRACKET,
+            HoldCommand::ChangeBrushSize(50),
+        ),
+        (KeyboardKey::KEY_H, HoldCommand::SpawnBrushStrokes),
     ]);
 
     return Keymap { on_press, on_hold };

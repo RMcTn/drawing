@@ -4,7 +4,7 @@ use raylib::{get_random_value, RaylibHandle};
 
 use crate::persistence::{save, save_with_file_picker};
 use crate::state::State;
-use crate::{persistence, Brush, Command, Keymap, Point, Stroke, Text, Tool};
+use crate::{persistence, Brush, HoldCommand, Keymap, Point, PressCommand, Stroke, Text, Tool};
 
 pub fn process_key_down_events(
     keymap: &Keymap,
@@ -17,24 +17,25 @@ pub fn process_key_down_events(
 ) {
     for (key, command) in keymap.on_hold.iter() {
         if rl.is_key_down(*key) {
+            use HoldCommand::*;
             match command {
-                Command::CameraZoom(percentage_diff) => {
+                CameraZoom(percentage_diff) => {
                     // NOTE: There will be rounding errors here, but we can format the zoom
                     // string
                     state.camera.zoom += *percentage_diff as f32 / 100.0;
                 }
-                Command::PanCameraHorizontal(diff_per_sec) => {
+                PanCameraHorizontal(diff_per_sec) => {
                     state.camera.target.x += *diff_per_sec as f32 * delta_time;
                 }
-                Command::PanCameraVertical(diff_per_sec) => {
+                PanCameraVertical(diff_per_sec) => {
                     state.camera.target.y += *diff_per_sec as f32 * delta_time;
                 }
                 // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
                 // behaviour we want?
-                Command::ChangeBrushSize(size_diff_per_sec) => {
+                ChangeBrushSize(size_diff_per_sec) => {
                     brush.brush_size += *size_diff_per_sec as f32 * delta_time
                 }
-                Command::SpawnBrushStrokes => {
+                SpawnBrushStrokes => {
                     // Create bunch of strokes with random coords in screen space for benchmark testing
                     // @SPEEDUP Allow passed in number of points to allocate to new Stroke
 
@@ -54,11 +55,6 @@ pub fn process_key_down_events(
                         state.add_stroke_with_undo(generated_stroke);
                     }
                 }
-
-                c => todo!(
-                    "Unimplemented command, or this isn't meant to be a push command: {:?}",
-                    c
-                ),
             }
         }
     }
@@ -74,9 +70,10 @@ pub fn process_key_pressed_events(
 ) {
     for (key, command) in keymap.on_press.iter() {
         if rl.is_key_pressed(*key) {
+            use PressCommand::*;
             match command {
-                Command::ToggleDebugging => *debugging = !*debugging,
-                Command::Save => {
+                ToggleDebugging => *debugging = !*debugging,
+                Save => {
                     if let Some(current_path) = state.output_path.clone() {
                         if let Err(err) = save(&mut state, &current_path) {
                             eprintln!(
@@ -89,31 +86,26 @@ pub fn process_key_pressed_events(
                         save_with_file_picker(&mut state);
                     }
                 }
-                Command::SaveAs => {
+                SaveAs => {
                     save_with_file_picker(&mut state);
                 }
-                Command::Load => {
+                Load => {
                     persistence::load_with_file_picker(&mut state);
                 }
-                Command::Undo => {
+                Undo => {
                     // TODO: Undo/Redo will need reworked for text mode
                     state.undo();
                 }
-                Command::Redo => {
+                Redo => {
                     state.redo();
                 }
                 // TODO(reece): Want to check if a brush stroke is already happening? Could just cut
                 // the working stroke off when changing brush type
-                Command::ChangeBrushType(new_type) => brush.brush_type = *new_type,
-                Command::UseTextTool => {
+                ChangeBrushType(new_type) => brush.brush_type = *new_type,
+                UseTextTool => {
                     *current_tool = Tool::Text;
                     // TODO: Exit text mode without 'saving'
                 }
-
-                c => todo!(
-                    "Unimplemented command, or this isn't meant to be a press command: {:?}",
-                    c
-                ),
             }
         }
     }
