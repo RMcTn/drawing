@@ -74,7 +74,8 @@ fn main() {
     let mut last_mouse_pos = rl.get_mouse_position();
 
     let mut brush_color_picker_info: Option<GuiColorPickerInfo> = None;
-    let keymap_panel_bounds = rrect(200, 200, 300, 300);
+    let keymap_panel_bounds = rrect(200, 200, 300, 300); // TODO: Calculate the bounds properly
+                                                         // from the keymap (scrolling if needed)
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -342,6 +343,23 @@ fn main() {
                 keymap_panel_bounds,
                 Some(&CString::new("Yo gabba gabba").unwrap()),
             );
+
+            let spacing_y = 30;
+            let spacing_x = 30;
+
+            let key_x = keymap_panel_bounds.x;
+            let key_y = keymap_panel_bounds.y;
+            for (i, (key, command)) in keymap.on_press.iter().enumerate() {
+                // TODO: Pretty print
+                let str = format!("Key: {:?} - {:?}", key, command);
+                drawing.draw_text(
+                    &str,
+                    key_x as i32,
+                    key_y as i32 + (spacing_y * i) as i32,
+                    12,
+                    Color::BLACK,
+                );
+            }
         }
 
         draw_info_ui(&mut drawing, &state, &brush);
