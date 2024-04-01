@@ -125,6 +125,10 @@ pub fn process_key_pressed_events(
                         picker_slider_x_padding: 50.0,
                     });
                 }
+                ToggleKeymapWindow => match state.mode {
+                    Mode::ShowingKeymapPanel => state.mode = Mode::default(),
+                    _ => state.mode = Mode::ShowingKeymapPanel,
+                },
             }
         }
     }

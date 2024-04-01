@@ -1,4 +1,5 @@
 use std::{
+    ffi::CString,
     fmt::Display,
     thread,
     time::{self, Instant},
@@ -73,6 +74,7 @@ fn main() {
     let mut last_mouse_pos = rl.get_mouse_position();
 
     let mut brush_color_picker_info: Option<GuiColorPickerInfo> = None;
+    let keymap_panel_bounds = rrect(200, 200, 300, 300);
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -211,6 +213,13 @@ fn main() {
                     }
                 }
             }
+            Mode::ShowingKeymapPanel => {
+                if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if !is_clicking_gui(state.mouse_pos, keymap_panel_bounds) {
+                        state.mode = Mode::default();
+                    }
+                }
+            }
         }
 
         if state.mode != Mode::TypingText {
@@ -325,6 +334,14 @@ fn main() {
             if debugging {
                 drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1, Color::GOLD);
             }
+        }
+
+        if state.mode == Mode::ShowingKeymapPanel {
+            // TODO: Maybe just do mode check here
+            drawing.gui_group_box(
+                keymap_panel_bounds,
+                Some(&CString::new("Yo gabba gabba").unwrap()),
+            );
         }
 
         draw_info_ui(&mut drawing, &state, &brush);
@@ -468,6 +485,7 @@ enum PressCommand {
     Load,
     ChangeBrushType(BrushType),
     PickBackgroundColor,
+    ToggleKeymapWindow,
 }
 
 type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
@@ -498,6 +516,7 @@ fn default_keymap() -> Keymap {
         ),
         (KeyboardKey::KEY_T, PressCommand::UseTextTool),
         (KeyboardKey::KEY_B, PressCommand::PickBackgroundColor),
+        (KeyboardKey::KEY_SLASH, PressCommand::ToggleKeymapWindow),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
@@ -542,6 +561,7 @@ enum Mode {
     UsingTool(Tool),
     PickingBackgroundColor(GuiColorPickerInfo),
     TypingText,
+    ShowingKeymapPanel,
 }
 
 impl Default for Mode {
