@@ -1,10 +1,14 @@
+use std::ffi::CString;
+
 use raylib::{
     color::Color,
     drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D},
-    math::{rvec2, Rectangle, Vector2},
+    math::{rrect, rvec2, Rectangle, Vector2},
+    rgui::RaylibDrawGui,
+    text::{measure_text_ex, Font, WeakFont},
 };
 
-use crate::{state::State, Brush, BrushType};
+use crate::{state::State, Brush, BrushType, Keymap};
 
 pub fn is_clicking_gui(mouse_pos: Vector2, bounds: Rectangle) -> bool {
     return bounds.check_collision_point_rec(mouse_pos);
@@ -59,4 +63,81 @@ pub fn debug_draw_center_crosshair(
         5.0,
         Color::PURPLE,
     );
+}
+
+pub fn draw_keymap(
+    drawing: &mut RaylibDrawHandle,
+    keymap: &Keymap,
+    keymap_panel_bounds: Rectangle,
+    font: &WeakFont,
+    font_size: f32,
+    letter_spacing: f32,
+) {
+    // TODO: FIXME: Text will happily overflow the bounds of the panel if it's long enough
+
+    drawing.gui_group_box(
+        keymap_panel_bounds,
+        Some(&CString::new("Keymappings").unwrap()),
+    );
+
+    let spacing_y = 30.0;
+    let spacing_x = 30.0;
+
+    let key_hold_bounds = rrect(
+        keymap_panel_bounds.x + spacing_x,
+        keymap_panel_bounds.y + spacing_y,
+        (keymap_panel_bounds.width / 2.0) - spacing_x,
+        keymap_panel_bounds.height,
+    );
+    let key_press_bounds = rrect(
+        key_hold_bounds.x + key_hold_bounds.width + spacing_x,
+        keymap_panel_bounds.y + spacing_y,
+        (keymap_panel_bounds.width / 2.0) - spacing_x,
+        keymap_panel_bounds.height,
+    );
+    let mut last_y_pos = key_hold_bounds.y;
+    // TODO: Pretty print
+    // TODO: Scrolling
+    for (key, command) in &keymap.on_hold {
+        let str = format!("{:?} - {:?}", key, command);
+        let text_measurements = measure_text_ex(&font, &str, font_size, letter_spacing);
+        let text_y_pos = last_y_pos + spacing_y + text_measurements.y;
+        drawing.draw_text_rec(
+            &font,
+            &str,
+            rrect(
+                key_hold_bounds.x,
+                text_y_pos,
+                key_hold_bounds.width,
+                key_hold_bounds.height,
+            ),
+            font_size,
+            letter_spacing,
+            true,
+            Color::GOLD,
+        );
+        last_y_pos = text_y_pos;
+    }
+
+    let mut last_y_pos = key_press_bounds.y;
+    for (key, command) in &keymap.on_press {
+        let str = format!("{:?} - {:?}", key, command);
+        let text_measurements = measure_text_ex(&font, &str, font_size, letter_spacing);
+        let text_y_pos = last_y_pos + spacing_y + text_measurements.y;
+        drawing.draw_text_rec(
+            &font,
+            &str,
+            rrect(
+                key_press_bounds.x,
+                text_y_pos,
+                key_press_bounds.width,
+                key_press_bounds.height,
+            ),
+            font_size,
+            letter_spacing,
+            true,
+            Color::GOLD,
+        );
+        last_y_pos = text_y_pos;
+    }
 }

@@ -5,7 +5,7 @@ use std::{
     time::{self, Instant},
 };
 
-use gui::{debug_draw_center_crosshair, draw_info_ui, is_clicking_gui};
+use gui::{debug_draw_center_crosshair, draw_info_ui, draw_keymap, is_clicking_gui};
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
@@ -74,8 +74,10 @@ fn main() {
     let mut last_mouse_pos = rl.get_mouse_position();
 
     let mut brush_color_picker_info: Option<GuiColorPickerInfo> = None;
-    let keymap_panel_bounds = rrect(200, 200, 300, 300); // TODO: Calculate the bounds properly
-                                                         // from the keymap (scrolling if needed)
+
+    let font = rl.get_font_default();
+
+    let font_size = 20.0; // TODO: Make user configurable
 
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
@@ -98,6 +100,16 @@ fn main() {
 
         state.mouse_pos = rl.get_mouse_position();
         let drawing_pos = rl.get_screen_to_world2D(state.mouse_pos, state.camera);
+
+        let keymap_panel_padding_percent = 0.10;
+        let keymap_panel_padding_x = screen_width as f32 * keymap_panel_padding_percent;
+        let keymap_panel_padding_y = screen_height as f32 * keymap_panel_padding_percent;
+        let keymap_panel_bounds = rrect(
+            keymap_panel_padding_x,
+            keymap_panel_padding_y,
+            screen_width as f32 - (keymap_panel_padding_x * 2.0),
+            screen_height as f32 - (keymap_panel_padding_y * 2.0),
+        );
 
         match state.mode {
             Mode::UsingTool(tool) => match tool {
@@ -338,28 +350,15 @@ fn main() {
         }
 
         if state.mode == Mode::ShowingKeymapPanel {
-            // TODO: Maybe just do mode check here
-            drawing.gui_group_box(
+            let letter_spacing = 4.0;
+            draw_keymap(
+                &mut drawing,
+                &keymap,
                 keymap_panel_bounds,
-                Some(&CString::new("Yo gabba gabba").unwrap()),
+                &font,
+                font_size,
+                letter_spacing,
             );
-
-            let spacing_y = 30;
-            let spacing_x = 30;
-
-            let key_x = keymap_panel_bounds.x;
-            let key_y = keymap_panel_bounds.y;
-            for (i, (key, command)) in keymap.on_press.iter().enumerate() {
-                // TODO: Pretty print
-                let str = format!("Key: {:?} - {:?}", key, command);
-                drawing.draw_text(
-                    &str,
-                    key_x as i32,
-                    key_y as i32 + (spacing_y * i) as i32,
-                    12,
-                    Color::BLACK,
-                );
-            }
         }
 
         draw_info_ui(&mut drawing, &state, &brush);
