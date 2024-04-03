@@ -17,6 +17,15 @@ impl Default for BackgroundColor {
     }
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct ForegroundColor(pub Color);
+
+impl Default for ForegroundColor {
+    fn default() -> Self {
+        ForegroundColor(Color::BLACK)
+    }
+}
+
 #[derive(Default, Deserialize, Serialize)]
 pub struct State {
     pub strokes: Strokes,
@@ -29,7 +38,10 @@ pub struct State {
     #[serde(with = "Camera2DDef")]
     #[serde(default)]
     pub camera: Camera2D,
+    #[serde(default)]
     pub background_color: BackgroundColor,
+    #[serde(default)]
+    pub foreground_color: ForegroundColor,
     #[serde(skip)] // Don't think we want to save mode yet
     pub mode: Mode,
     pub mouse_pos: Vector2,

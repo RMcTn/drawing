@@ -7,7 +7,11 @@ use crate::state::State;
 pub fn save_with_file_picker(state: &mut State) {
     if let Some(path) = get_save_path() {
         if let Err(err) = save(state, &path) {
-            eprintln!("Could not save {}. Error: {}", &path.to_string_lossy(), err.to_string())
+            eprintln!(
+                "Could not save {}. Error: {}",
+                &path.to_string_lossy(),
+                err.to_string()
+            )
         } else {
             state.output_path = Some(path);
         }
@@ -41,11 +45,18 @@ pub fn get_load_path() -> Option<PathBuf> {
 
 pub fn load_with_file_picker(state: &mut State) {
     if let Some(path) = get_load_path() {
-        if let Ok(loaded_state) = load(&path) {
-            *state = loaded_state;
-            state.output_path = None;
-        } else {
-            eprintln!("Could not load {}. File doesn't contain valid drawing data.", path.to_string_lossy())
+        match load(&path) {
+            Ok(loaded_state) => {
+                *state = loaded_state;
+                state.output_path = None;
+            }
+            Err(e) => {
+                eprintln!(
+                    "Could not load {}. File doesn't contain valid drawing data. {}",
+                    path.to_string_lossy(),
+                    e
+                )
+            }
         }
     } else {
         println!("File picker was exited without picking a file. No loading has taken place");

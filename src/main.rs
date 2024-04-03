@@ -13,7 +13,7 @@ use slotmap::{new_key_type, DefaultKey, SlotMap};
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{get_char_and_key_pressed, process_key_down_events, process_key_pressed_events};
 use render::{draw_brush_marker, draw_stroke};
-use state::State;
+use state::{ForegroundColor, State};
 
 mod gui;
 mod input;
@@ -52,8 +52,6 @@ fn main() {
         brush_size: initial_brush_size,
     };
 
-    let mut current_brush_color = Color::BLACK;
-
     let mut state = State {
         strokes: SlotMap::new(),
         undo_actions: Vec::new(),
@@ -64,12 +62,13 @@ fn main() {
         output_path: None,
         camera,
         background_color: Default::default(),
+        foreground_color: Default::default(),
         mode: Mode::UsingTool(Tool::Brush),
         mouse_pos: rvec2(0, 0),
     };
 
     let mut is_drawing = false;
-    let mut working_stroke = Stroke::new(current_brush_color, brush.brush_size);
+    let mut working_stroke = Stroke::new(ForegroundColor::default().0, brush.brush_size);
     let mut working_text: Option<Text> = None;
     let mut last_mouse_pos = rl.get_mouse_position();
 
@@ -130,7 +129,7 @@ fn main() {
                                 // Drawing
                                 if !is_drawing {
                                     working_stroke =
-                                        Stroke::new(current_brush_color, brush.brush_size);
+                                        Stroke::new(state.foreground_color.0, brush.brush_size);
                                     is_drawing = true;
                                 }
 
@@ -148,7 +147,8 @@ fn main() {
                         // the brush stroke unless we change back to brush mode
                         if is_drawing {
                             state.add_stroke_with_undo(working_stroke);
-                            working_stroke = Stroke::new(current_brush_color, brush.brush_size);
+                            working_stroke =
+                                Stroke::new(state.foreground_color.0, brush.brush_size);
                         }
                         is_drawing = false;
                     }
@@ -341,8 +341,8 @@ fn main() {
             // TODO: Scale the GUI?
             if !is_drawing {
                 // Hide when not drawing
-                current_brush_color =
-                    drawing.gui_color_picker(picker_info.bounds, current_brush_color);
+                state.foreground_color.0 =
+                    drawing.gui_color_picker(picker_info.bounds, state.foreground_color.0);
             }
             if debugging {
                 drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1, Color::GOLD);
