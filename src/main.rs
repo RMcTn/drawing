@@ -114,7 +114,8 @@ fn main() {
             Mode::UsingTool(tool) => match tool {
                 Tool::Brush => {
                     // TODO: FIXME: Quite easy to accidentally draw when coming out of background
-                    // color picker
+                    // color picker - Maybe a little delay before drawing after clicking off the
+                    // picker?
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
                         if let Some(picker_info) = &brush_color_picker_info {
                             if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
@@ -179,6 +180,21 @@ fn main() {
                             });
                         }
                         state.mode = Mode::TypingText;
+                    }
+                }
+                Tool::ColorPicker => {
+                    // TODO: Draw an icon
+                    if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                        // See if a brush stroke was hit
+                        let screen = rl.get_screen_data(&thread);
+                        let pixel_color = screen.get_image_data()[state.mouse_pos.y as usize
+                            * screen_width as usize
+                            + state.mouse_pos.x as usize];
+
+                        state.foreground_color.0 = pixel_color;
+
+                        // TODO: Text colour picking as well
+                        state.mode = Mode::UsingTool(Tool::Brush);
                     }
                 }
             },
@@ -503,6 +519,7 @@ enum PressCommand {
     ChangeBrushType(BrushType),
     PickBackgroundColor,
     ToggleKeymapWindow,
+    UseColorPicker,
 }
 
 type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
@@ -534,6 +551,7 @@ fn default_keymap() -> Keymap {
         (KeyboardKey::KEY_T, PressCommand::UseTextTool),
         (KeyboardKey::KEY_B, PressCommand::PickBackgroundColor),
         (KeyboardKey::KEY_SLASH, PressCommand::ToggleKeymapWindow),
+        (KeyboardKey::KEY_C, PressCommand::UseColorPicker),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
@@ -571,6 +589,7 @@ enum BrushType {
 enum Tool {
     Brush,
     Text,
+    ColorPicker,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
