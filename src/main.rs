@@ -48,8 +48,7 @@ fn main() {
     .expect("Couldn't create color dropper icon from packaged color dropper image");
     let color_dropper_icon = rl
         .load_texture_from_image(&thread, &color_dropper_icon_image)
-        .expect("Couldn't find color dropper icon file"); // TODO: Package the icon in the binary
-                                                          // or something
+        .expect("Couldn't find color dropper icon file");
     let color_dropper_width = color_dropper_icon.width(); // REFACTOR: Will want something similar
                                                           // for other tool icons
     let color_dropper_height = color_dropper_icon.height();
