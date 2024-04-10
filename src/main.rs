@@ -129,8 +129,12 @@ fn main() {
 
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
-        let pixel_color_at_mouse_pos = screen.get_image_data()
-            [state.mouse_pos.y as usize * screen_width as usize + state.mouse_pos.x as usize];
+        let pixel_color_at_mouse_pos =
+            // Give a little wiggle room when moving off the edges of the window, stops a crash :)
+            screen.get_image_data()[state.mouse_pos.y.clamp(0.0, (screen_height - 1) as f32)
+                as usize
+                * screen_width as usize
+                + state.mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as usize];
 
         match state.mode {
             Mode::UsingTool(tool) => match tool {
