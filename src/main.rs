@@ -213,6 +213,9 @@ fn main() {
                 }
                 Tool::ColorPicker => {
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                        // NOTE: This literally is whatever color is at the screen. This includes
+                        // GUI elements! If it gets annoying enough, it can be changed, but this
+                        // was simpler
                         state.foreground_color.0 = pixel_color_at_mouse_pos;
 
                         // TODO: Text colour picking as well
