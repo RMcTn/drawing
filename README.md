@@ -40,6 +40,7 @@ Two types of key inputs:
 | KEY_Q | ChangeBrushType to drawing |
 | KEY_T | Change to Text Tool |
 | KEY_B | Change background color |
+| KEY_C | Change to Color Picker Tool |
 
 #### Hold keys
 | Key | Action |
@@ -58,7 +59,7 @@ Two types of key inputs:
 | Input | Action |
 |-----|--------|
 | Left click | Draw |
-| Right click | Color picker |
+| Right click | Brush Color palette |
 | Middle click | Pan |
 | Mouse wheel | Zoom in/Zoom out |
 | Ctrl + Mouse wheel | Change brush size |
