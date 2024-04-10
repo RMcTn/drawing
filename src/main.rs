@@ -360,13 +360,39 @@ fn main() {
                 Mode::UsingTool(Tool::ColorPicker) => {
                     let color_preview_width = 32;
                     let color_preview_height = 32;
-                    let color_preview_rect = rrect(
-                        drawing_pos.x - (color_preview_width * 2) as f32,
-                        drawing_pos.y,
-                        color_preview_width,
-                        color_preview_height,
-                    );
+
+                    let color_preview_rect = {
+                        let mut color_preview_rect = rrect(
+                            drawing_pos.x - (color_preview_width * 2) as f32,
+                            drawing_pos.y,
+                            color_preview_width,
+                            color_preview_height,
+                        );
+
+                        let color_preview_top_left_screen_point = drawing_camera
+                            .get_world_to_screen2D(
+                                rvec2(
+                                    color_preview_rect.x,
+                                    color_preview_rect.y + color_preview_rect.height,
+                                ),
+                                camera,
+                            );
+
+                        // NOTE: Since we draw from the left and down, we only care about going off
+                        // screen to the left and down
+                        if color_preview_top_left_screen_point.x < 0 as f32 {
+                            color_preview_rect.x = drawing_pos.x + (color_preview_width * 2) as f32;
+                        }
+
+                        if color_preview_top_left_screen_point.y > screen_height as f32 {
+                            color_preview_rect.y =
+                                drawing_pos.y - (color_preview_height * 2) as f32;
+                        }
+                        color_preview_rect
+                    };
+
                     let color_preview_border_rect = rrect(
+                        // Give it a bit of padding
                         color_preview_rect.x - 1.0,
                         color_preview_rect.y - 1.0,
                         color_preview_width + 2,
