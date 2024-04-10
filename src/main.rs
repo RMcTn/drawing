@@ -36,9 +36,11 @@ fn main() {
     let color_picker_scaling_factor = 4; // TODO: Make other GUI things scalable.
                                          // TODO: Configurable scaling
     let color_dropper_icon = rl
-        .load_texture(&thread, "color-dropper1.png")
-        .expect("Couldn't find color dropper icon file");
-    let color_dropper_width = color_dropper_icon.width();
+        .load_texture(&thread, "color-dropper.png")
+        .expect("Couldn't find color dropper icon file"); // TODO: Package the icon in the binary
+                                                          // or something
+    let color_dropper_width = color_dropper_icon.width(); // REFACTOR: Will want something similar
+                                                          // for other tool icons
     let color_dropper_height = color_dropper_icon.height();
     let color_dropper_scaled_width = color_dropper_width * color_picker_scaling_factor;
     let color_dropper_scaled_height = color_dropper_height * color_picker_scaling_factor;
@@ -54,6 +56,9 @@ fn main() {
         rotation: 0.0,
         zoom: 1.0,
     };
+
+    let outline_color = Color::BLACK; // TODO: Using black as a stand in until we do something that
+                                      // reacts to the background color
 
     let initial_brush_size = 10.0;
 
@@ -119,6 +124,13 @@ fn main() {
             screen_width as f32 - (keymap_panel_padding_x * 2.0),
             screen_height as f32 - (keymap_panel_padding_y * 2.0),
         );
+
+        let screen = rl.get_screen_data(&thread);
+
+        // NOTE: Make sure any icons we don't want interfering with this color have a transparent
+        // pixel at the mouse pos (or draw it away from the mouse pos a bit)
+        let pixel_color_at_mouse_pos = screen.get_image_data()
+            [state.mouse_pos.y as usize * screen_width as usize + state.mouse_pos.x as usize];
 
         match state.mode {
             Mode::UsingTool(tool) => match tool {
@@ -195,13 +207,7 @@ fn main() {
                 Tool::ColorPicker => {
                     // TODO: Draw an icon
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                        // See if a brush stroke was hit
-                        let screen = rl.get_screen_data(&thread);
-                        let pixel_color = screen.get_image_data()[state.mouse_pos.y as usize
-                            * screen_width as usize
-                            + state.mouse_pos.x as usize];
-
-                        state.foreground_color.0 = pixel_color;
+                        state.foreground_color.0 = pixel_color_at_mouse_pos;
 
                         // TODO: Text colour picking as well
                         state.mode = Mode::UsingTool(Tool::Brush);
@@ -348,9 +354,23 @@ fn main() {
 
             match state.mode {
                 Mode::UsingTool(Tool::ColorPicker) => {
-                    // TODO: Little preview box of the hovered color (almost like a magnified view)
-
-                    let picker_screen_location = rrect(
+                    let color_preview_width = 32;
+                    let color_preview_height = 32;
+                    let color_preview_rect = rrect(
+                        drawing_pos.x - (color_preview_width * 2) as f32,
+                        drawing_pos.y,
+                        color_preview_width,
+                        color_preview_height,
+                    );
+                    let color_preview_border_rect = rrect(
+                        color_preview_rect.x - 1.0,
+                        color_preview_rect.y - 1.0,
+                        color_preview_width + 2,
+                        color_preview_height + 2,
+                    );
+                    drawing_camera.draw_rectangle_rec(color_preview_border_rect, outline_color);
+                    drawing_camera.draw_rectangle_rec(color_preview_rect, pixel_color_at_mouse_pos);
+                    let color_dropper_screen_location = rrect(
                         drawing_pos.x,
                         drawing_pos.y - (color_dropper_scaled_height) as f32,
                         color_dropper_scaled_width,
@@ -359,7 +379,7 @@ fn main() {
                     drawing_camera.draw_texture_pro(
                         &color_dropper_icon,
                         color_dropper_source_rect,
-                        picker_screen_location,
+                        color_dropper_screen_location,
                         rvec2(0, 0),
                         0.0,
                         Color::WHITE,
