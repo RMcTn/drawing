@@ -1,5 +1,4 @@
 use std::{
-    ffi::CString,
     fmt::Display,
     thread,
     time::{self, Instant},
@@ -33,6 +32,17 @@ fn main() {
         .resizable()
         .title("Window")
         .build();
+
+    let color_picker_scaling_factor = 4; // TODO: Make other GUI things scalable.
+                                         // TODO: Configurable scaling
+    let color_dropper_icon = rl
+        .load_texture(&thread, "color-dropper1.png")
+        .expect("Couldn't find color dropper icon file");
+    let color_dropper_width = color_dropper_icon.width();
+    let color_dropper_height = color_dropper_icon.height();
+    let color_dropper_scaled_width = color_dropper_width * color_picker_scaling_factor;
+    let color_dropper_scaled_height = color_dropper_height * color_picker_scaling_factor;
+    let color_dropper_source_rect = rrect(0, 0, color_dropper_width, color_dropper_height);
 
     let target_fps = 60;
     let seconds_per_frame = 1.0 / target_fps as f32;
@@ -336,7 +346,27 @@ fn main() {
                 }
             }
 
-            draw_brush_marker(&mut drawing_camera, drawing_pos, &brush);
+            match state.mode {
+                Mode::UsingTool(Tool::ColorPicker) => {
+                    // TODO: Little preview box of the hovered color (almost like a magnified view)
+
+                    let picker_screen_location = rrect(
+                        drawing_pos.x,
+                        drawing_pos.y - (color_dropper_scaled_height) as f32,
+                        color_dropper_scaled_width,
+                        color_dropper_scaled_height,
+                    );
+                    drawing_camera.draw_texture_pro(
+                        &color_dropper_icon,
+                        color_dropper_source_rect,
+                        picker_screen_location,
+                        rvec2(0, 0),
+                        0.0,
+                        Color::WHITE,
+                    );
+                }
+                _ => draw_brush_marker(&mut drawing_camera, drawing_pos, &brush),
+            }
 
             if debugging {
                 debug_draw_center_crosshair(
