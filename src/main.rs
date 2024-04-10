@@ -4,7 +4,10 @@ use std::{
     time::{self, Instant},
 };
 
-use gui::{debug_draw_center_crosshair, draw_info_ui, draw_keymap, is_clicking_gui};
+use gui::{
+    debug_draw_center_crosshair, draw_color_dropper_icon, draw_color_dropper_preview, draw_info_ui,
+    draw_keymap, is_clicking_gui,
+};
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
@@ -209,7 +212,6 @@ fn main() {
                     }
                 }
                 Tool::ColorPicker => {
-                    // TODO: Draw an icon
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
                         state.foreground_color.0 = pixel_color_at_mouse_pos;
 
@@ -358,61 +360,22 @@ fn main() {
 
             match state.mode {
                 Mode::UsingTool(Tool::ColorPicker) => {
-                    let color_preview_width = 32;
-                    let color_preview_height = 32;
-
-                    let color_preview_rect = {
-                        let mut color_preview_rect = rrect(
-                            drawing_pos.x - (color_preview_width * 2) as f32,
-                            drawing_pos.y,
-                            color_preview_width,
-                            color_preview_height,
-                        );
-
-                        let color_preview_top_left_screen_point = drawing_camera
-                            .get_world_to_screen2D(
-                                rvec2(
-                                    color_preview_rect.x,
-                                    color_preview_rect.y + color_preview_rect.height,
-                                ),
-                                camera,
-                            );
-
-                        // NOTE: Since we draw from the left and down, we only care about going off
-                        // screen to the left and down
-                        if color_preview_top_left_screen_point.x < 0 as f32 {
-                            color_preview_rect.x = drawing_pos.x + (color_preview_width * 2) as f32;
-                        }
-
-                        if color_preview_top_left_screen_point.y > screen_height as f32 {
-                            color_preview_rect.y =
-                                drawing_pos.y - (color_preview_height * 2) as f32;
-                        }
-                        color_preview_rect
-                    };
-
-                    let color_preview_border_rect = rrect(
-                        // Give it a bit of padding
-                        color_preview_rect.x - 1.0,
-                        color_preview_rect.y - 1.0,
-                        color_preview_width + 2,
-                        color_preview_height + 2,
+                    draw_color_dropper_preview(
+                        &mut drawing_camera,
+                        drawing_pos,
+                        &camera,
+                        screen_height,
+                        outline_color,
+                        pixel_color_at_mouse_pos,
                     );
-                    drawing_camera.draw_rectangle_rec(color_preview_border_rect, outline_color);
-                    drawing_camera.draw_rectangle_rec(color_preview_rect, pixel_color_at_mouse_pos);
-                    let color_dropper_screen_location = rrect(
-                        drawing_pos.x,
-                        drawing_pos.y - (color_dropper_scaled_height) as f32,
+
+                    draw_color_dropper_icon(
+                        &mut drawing_camera,
+                        drawing_pos,
                         color_dropper_scaled_width,
                         color_dropper_scaled_height,
-                    );
-                    drawing_camera.draw_texture_pro(
                         &color_dropper_icon,
                         color_dropper_source_rect,
-                        color_dropper_screen_location,
-                        rvec2(0, 0),
-                        0.0,
-                        Color::WHITE,
                     );
                 }
                 _ => draw_brush_marker(&mut drawing_camera, drawing_pos, &brush),

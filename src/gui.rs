@@ -1,11 +1,13 @@
 use std::ffi::CString;
 
 use raylib::{
+    camera::Camera2D,
     color::Color,
     drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D},
     math::{rrect, rvec2, Rectangle, Vector2},
     rgui::RaylibDrawGui,
     text::{measure_text_ex, Font, WeakFont},
+    texture::Texture2D,
 };
 
 use crate::{state::State, Brush, BrushType, Keymap};
@@ -140,4 +142,78 @@ pub fn draw_keymap(
         );
         last_y_pos = text_y_pos;
     }
+}
+
+pub fn draw_color_dropper_preview(
+    drawing: &mut RaylibMode2D<'_, RaylibDrawHandle<'_>>,
+    drawing_pos: Vector2,
+    camera: &Camera2D,
+    screen_height: i32,
+    outline_color: Color,
+    pixel_color_at_mouse_pos: Color,
+) {
+    let color_preview_width = 32;
+    let color_preview_height = 32;
+
+    let color_preview_rect = {
+        let mut color_preview_rect = rrect(
+            drawing_pos.x - (color_preview_width * 2) as f32,
+            drawing_pos.y,
+            color_preview_width,
+            color_preview_height,
+        );
+
+        let color_preview_top_left_screen_point = drawing.get_world_to_screen2D(
+            rvec2(
+                color_preview_rect.x,
+                color_preview_rect.y + color_preview_rect.height,
+            ),
+            camera,
+        );
+
+        // NOTE: Since we draw from the left and down, we only care about going off
+        // screen to the left and down
+        if color_preview_top_left_screen_point.x < 0 as f32 {
+            color_preview_rect.x = drawing_pos.x + (color_preview_width * 2) as f32;
+        }
+
+        if color_preview_top_left_screen_point.y > screen_height as f32 {
+            color_preview_rect.y = drawing_pos.y - (color_preview_height * 2) as f32;
+        }
+        color_preview_rect
+    };
+
+    let color_preview_border_rect = rrect(
+        // Give it a bit of padding
+        color_preview_rect.x - 1.0,
+        color_preview_rect.y - 1.0,
+        color_preview_width + 2,
+        color_preview_height + 2,
+    );
+    drawing.draw_rectangle_rec(color_preview_border_rect, outline_color);
+    drawing.draw_rectangle_rec(color_preview_rect, pixel_color_at_mouse_pos);
+}
+
+pub fn draw_color_dropper_icon(
+    drawing: &mut RaylibMode2D<'_, RaylibDrawHandle<'_>>,
+    drawing_pos: Vector2,
+    scaled_width: i32,
+    scaled_height: i32,
+    color_dropper_icon: &Texture2D,
+    texture_rect: Rectangle,
+) {
+    let color_dropper_screen_location = rrect(
+        drawing_pos.x,
+        drawing_pos.y - (scaled_height) as f32,
+        scaled_width,
+        scaled_height,
+    );
+    drawing.draw_texture_pro(
+        &color_dropper_icon,
+        texture_rect,
+        color_dropper_screen_location,
+        rvec2(0, 0),
+        0.0,
+        Color::WHITE,
+    );
 }
