@@ -38,8 +38,16 @@ fn main() {
 
     let color_picker_scaling_factor = 4; // TODO: Make other GUI things scalable.
                                          // TODO: Configurable scaling
+
+    let color_dropper_icon_bytes = include_bytes!("../assets/color-dropper.png").to_vec();
+    let color_dropper_icon_image = Image::load_image_from_mem(
+        ".png",
+        &color_dropper_icon_bytes,
+        color_dropper_icon_bytes.len() as i32,
+    )
+    .expect("Couldn't create color dropper icon from packaged color dropper image");
     let color_dropper_icon = rl
-        .load_texture(&thread, "color-dropper.png")
+        .load_texture_from_image(&thread, &color_dropper_icon_image)
         .expect("Couldn't find color dropper icon file"); // TODO: Package the icon in the binary
                                                           // or something
     let color_dropper_width = color_dropper_icon.width(); // REFACTOR: Will want something similar
