@@ -145,9 +145,8 @@ pub fn draw_keymap(
 }
 
 pub fn draw_color_dropper_preview(
-    drawing: &mut RaylibMode2D<'_, RaylibDrawHandle<'_>>,
+    drawing: &mut RaylibDrawHandle,
     drawing_pos: Vector2,
-    camera: &Camera2D,
     screen_height: i32,
     outline_color: Color,
     pixel_color_at_mouse_pos: Color,
@@ -163,21 +162,13 @@ pub fn draw_color_dropper_preview(
             color_preview_height,
         );
 
-        let color_preview_top_left_screen_point = drawing.get_world_to_screen2D(
-            rvec2(
-                color_preview_rect.x,
-                color_preview_rect.y + color_preview_rect.height,
-            ),
-            camera,
-        );
-
         // NOTE: Since we draw from the left and down, we only care about going off
         // screen to the left and down
-        if color_preview_top_left_screen_point.x < 0 as f32 {
+        if color_preview_rect.x < 0 as f32 {
             color_preview_rect.x = drawing_pos.x + (color_preview_width * 2) as f32;
         }
 
-        if color_preview_top_left_screen_point.y > screen_height as f32 {
+        if color_preview_rect.y + color_preview_rect.height > screen_height as f32 {
             color_preview_rect.y = drawing_pos.y - (color_preview_height * 2) as f32;
         }
         color_preview_rect
@@ -195,7 +186,7 @@ pub fn draw_color_dropper_preview(
 }
 
 pub fn draw_color_dropper_icon(
-    drawing: &mut RaylibMode2D<'_, RaylibDrawHandle<'_>>,
+    drawing: &mut RaylibDrawHandle,
     drawing_pos: Vector2,
     scaled_width: i32,
     scaled_height: i32,

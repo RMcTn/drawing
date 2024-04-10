@@ -26,8 +26,9 @@ pub fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke
         drawing.draw_circle_v(last_vec, brush_size / 2.0, stroke.color); // @SPEEDUP This is slow as fuck
     }
 }
+
 pub fn draw_brush_marker(
-    drawing: &mut RaylibMode2D<'_, RaylibDrawHandle<'_>>,
+    drawing: &mut RaylibMode2D<RaylibDrawHandle>,
     drawing_pos: Vector2,
     brush: &Brush,
 ) {

@@ -346,6 +346,11 @@ fn main() {
                 working_stroke.brush_size,
             );
 
+            // Draw "world space" GUI elements for the current mode
+            if should_show_brush_marker(state.mode) {
+                draw_brush_marker(&mut drawing_camera, drawing_pos, &brush);
+            }
+
             if let Some(working_text) = &working_text {
                 if let Some(pos) = working_text.position {
                     drawing_camera.draw_text(
@@ -358,29 +363,6 @@ fn main() {
                 }
             }
 
-            match state.mode {
-                Mode::UsingTool(Tool::ColorPicker) => {
-                    draw_color_dropper_preview(
-                        &mut drawing_camera,
-                        drawing_pos,
-                        &camera,
-                        screen_height,
-                        outline_color,
-                        pixel_color_at_mouse_pos,
-                    );
-
-                    draw_color_dropper_icon(
-                        &mut drawing_camera,
-                        drawing_pos,
-                        color_dropper_scaled_width,
-                        color_dropper_scaled_height,
-                        &color_dropper_icon,
-                        color_dropper_source_rect,
-                    );
-                }
-                _ => draw_brush_marker(&mut drawing_camera, drawing_pos, &brush),
-            }
-
             if debugging {
                 debug_draw_center_crosshair(
                     &mut drawing_camera,
@@ -389,6 +371,32 @@ fn main() {
                     screen_height,
                 );
             }
+        }
+
+        // Draw non "world space" GUI elements for the current mode
+        match state.mode {
+            Mode::UsingTool(Tool::ColorPicker) => {
+                draw_color_dropper_preview(
+                    &mut drawing,
+                    state.mouse_pos,
+                    screen_height,
+                    outline_color,
+                    pixel_color_at_mouse_pos,
+                );
+
+                draw_color_dropper_icon(
+                    &mut drawing,
+                    state.mouse_pos,
+                    color_dropper_scaled_width,
+                    color_dropper_scaled_height,
+                    &color_dropper_icon,
+                    color_dropper_source_rect,
+                );
+            }
+            Mode::PickingBackgroundColor(_) => {}
+            Mode::TypingText => {}
+            Mode::ShowingKeymapPanel => {}
+            Mode::UsingTool(_) => {}
         }
 
         if let Mode::PickingBackgroundColor(color_picker) = state.mode {
@@ -665,5 +673,12 @@ impl GuiColorPickerInfo {
         let mut bounds_with_picker = self.bounds;
         bounds_with_picker.width += self.picker_slider_x_padding;
         return bounds_with_picker;
+    }
+}
+fn should_show_brush_marker(mode: Mode) -> bool {
+    match mode {
+        Mode::UsingTool(Tool::Brush) => true,
+        Mode::ShowingKeymapPanel => true,
+        _ => false,
     }
 }
