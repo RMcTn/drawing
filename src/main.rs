@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     thread,
     time::{self, Duration, Instant},
@@ -106,6 +107,11 @@ fn main() {
     let mut time_since_last_text_deletion = Duration::ZERO;
     let delay_between_text_deletions = Duration::from_millis(100); // TODO: Make user configurable
 
+    let mut processed_press_commands: HashMap<PressCommand, bool> = keymap
+        .on_press
+        .iter()
+        .map(|entry| (entry.1, false))
+        .collect();
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
         let current_fps = rl.get_fps();
@@ -285,7 +291,14 @@ fn main() {
             // TODO: FIXME: If these keymaps share keys (like S to move the camera, and ctrl + S to
             // save), then both will actions be triggered. Haven't thought about how to handle
             // that yet
-            process_key_pressed_events(&keymap, &mut debugging, &mut rl, &mut brush, &mut state);
+            process_key_pressed_events(
+                &keymap,
+                &mut debugging,
+                &mut rl,
+                &mut brush,
+                &mut state,
+                &mut processed_press_commands,
+            );
             process_key_down_events(
                 &keymap,
                 screen_width,
@@ -569,7 +582,7 @@ enum HoldCommand {
     SpawnBrushStrokes,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 enum PressCommand {
     Undo,
     Redo,
@@ -589,8 +602,6 @@ type PressKeyMappings = Vec<(KeyboardKeyCombo, PressCommand)>;
 type HoldKeyMappings = Vec<(KeyboardKey, HoldCommand)>;
 
 struct Keymap {
-    // Does not support key combinations at the moment. Could be Vec<(Vec<KeyboardKey>, Command)>
-    // if we wanted
     on_press: PressKeyMappings,
     on_hold: HoldKeyMappings,
 }

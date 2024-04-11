@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use raylib::color::Color;
 use raylib::consts::KeyboardKey;
 use raylib::math::rrect;
@@ -69,6 +71,7 @@ pub fn process_key_pressed_events(
     rl: &mut RaylibHandle,
     brush: &mut Brush,
     mut state: &mut State,
+    processed_commands: &mut HashMap<PressCommand, bool>,
 ) {
     for (keys, command) in keymap.on_press.iter() {
         let mut all_keys_pressed = true;
@@ -76,11 +79,22 @@ pub fn process_key_pressed_events(
         for key in keys {
             if !rl.is_key_down(*key) {
                 all_keys_pressed = false;
+
+                processed_commands
+                    .entry(*command)
+                    .and_modify(|processed| *processed = false);
+
                 break;
             }
         }
 
-        if all_keys_pressed {
+        let command_already_processed = processed_commands.get(command).unwrap_or(&false);
+
+        if all_keys_pressed && !command_already_processed {
+            processed_commands
+                .entry(*command)
+                .and_modify(|processed| *processed = true);
+
             use PressCommand::*;
             match command {
                 ToggleDebugging => *debugging = !*debugging,
