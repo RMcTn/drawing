@@ -150,19 +150,17 @@ pub fn process_key_pressed_events(
 /// Key presses are always uppercase (i.e 'a' will be KEY_A, so will 'A').
 /// Char presses are the individual characters that have been pressed, so can differentiate between
 /// uppercase and lowercase (same with symbols)
-pub fn get_char_and_key_pressed(raylib: &mut RaylibHandle) -> (Option<i32>, Option<KeyboardKey>) {
+pub fn get_char_pressed() -> Option<u32> {
     let char_pressed = unsafe { raylib::ffi::GetCharPressed() };
 
-    let key_pressed = raylib.get_key_pressed();
-
     if char_pressed == 0 {
-        return (None, key_pressed);
+        return None;
     }
 
-    return (Some(char_pressed), key_pressed);
+    return Some(char_pressed as u32);
 }
 
-pub fn append_input_to_working_text(ch: i32, working_text: &mut Option<Text>) {
+pub fn append_input_to_working_text(ch: u32, working_text: &mut Option<Text>) {
     if working_text.is_none() {
         let _ = working_text.insert(Text {
             content: "".to_string(),
@@ -170,7 +168,7 @@ pub fn append_input_to_working_text(ch: i32, working_text: &mut Option<Text>) {
         });
     }
 
-    let ch = char::from_u32(ch as u32);
+    let ch = char::from_u32(ch);
     match ch {
         Some(c) => working_text.as_mut().unwrap().content.push(c), // Was a safe
         // unwrap at the time

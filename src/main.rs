@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
 
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
-use input::{get_char_and_key_pressed, process_key_down_events, process_key_pressed_events};
+use input::{get_char_pressed, process_key_down_events, process_key_pressed_events};
 use render::{draw_brush_marker, draw_stroke};
 use state::{ForegroundColor, State};
 
@@ -252,22 +252,7 @@ fn main() {
                     }
                 }
 
-                // What is the point of getting this key pressed rather than just checking if the
-                // key is pressed when we want it?
-                let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
-                let ch = char_and_key_pressed.0;
-                let key = char_and_key_pressed.1;
-                if ch.is_none() && key.is_none() {
-                    break;
-                }
-
-                let key = key.unwrap();
-
-                if let Some(ch) = ch {
-                    append_input_to_working_text(ch, &mut working_text);
-                }
-
-                if key == KeyboardKey::KEY_ENTER {
+                if rl.is_key_pressed(KeyboardKey::KEY_ENTER) {
                     dbg!("Exiting text tool");
                     if let Some(text) = working_text {
                         if !text.content.is_empty() {
@@ -278,6 +263,13 @@ fn main() {
                     working_text = None;
                     state.mode = Mode::UsingTool(Tool::Brush);
                     break;
+                }
+
+                let char_pressed = get_char_pressed();
+
+                match char_pressed {
+                    Some(ch) => append_input_to_working_text(ch, &mut working_text),
+                    None => break,
                 }
             },
             Mode::ShowingKeymapPanel => {
