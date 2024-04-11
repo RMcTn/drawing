@@ -284,6 +284,9 @@ fn main() {
         }
 
         if state.mode != Mode::TypingText {
+            // TODO: FIXME: If these keymaps share keys (like S to move the camera, and ctrl + S to
+            // save), then both will actions be triggered. Haven't thought about how to handle
+            // that yet
             process_key_pressed_events(&keymap, &mut debugging, &mut rl, &mut brush, &mut state);
             process_key_down_events(
                 &keymap,
@@ -583,7 +586,8 @@ enum PressCommand {
     UseColorPicker,
 }
 
-type PressKeyMappings = Vec<(KeyboardKey, PressCommand)>;
+type KeyboardKeyCombo = Vec<KeyboardKey>;
+type PressKeyMappings = Vec<(KeyboardKeyCombo, PressCommand)>;
 type HoldKeyMappings = Vec<(KeyboardKey, HoldCommand)>;
 
 struct Keymap {
@@ -595,24 +599,40 @@ struct Keymap {
 
 fn default_keymap() -> Keymap {
     let on_press = PressKeyMappings::from([
-        (KeyboardKey::KEY_M, PressCommand::ToggleDebugging),
-        (KeyboardKey::KEY_O, PressCommand::Save),
-        (KeyboardKey::KEY_I, PressCommand::SaveAs),
-        (KeyboardKey::KEY_P, PressCommand::Load),
-        (KeyboardKey::KEY_Z, PressCommand::Undo),
-        (KeyboardKey::KEY_R, PressCommand::Redo),
+        (vec![KeyboardKey::KEY_M], PressCommand::ToggleDebugging),
         (
-            KeyboardKey::KEY_E,
+            vec![KeyboardKey::KEY_S, KeyboardKey::KEY_LEFT_CONTROL],
+            PressCommand::Save,
+        ),
+        (
+            vec![
+                KeyboardKey::KEY_S,
+                KeyboardKey::KEY_LEFT_CONTROL,
+                KeyboardKey::KEY_LEFT_ALT,
+            ],
+            PressCommand::SaveAs,
+        ),
+        (
+            vec![KeyboardKey::KEY_O, KeyboardKey::KEY_LEFT_CONTROL],
+            PressCommand::Load,
+        ),
+        (vec![KeyboardKey::KEY_Z], PressCommand::Undo),
+        (vec![KeyboardKey::KEY_R], PressCommand::Redo),
+        (
+            vec![KeyboardKey::KEY_E],
             PressCommand::ChangeBrushType(BrushType::Deleting),
         ),
         (
-            KeyboardKey::KEY_Q,
+            vec![KeyboardKey::KEY_Q],
             PressCommand::ChangeBrushType(BrushType::Drawing),
         ),
-        (KeyboardKey::KEY_T, PressCommand::UseTextTool),
-        (KeyboardKey::KEY_B, PressCommand::PickBackgroundColor),
-        (KeyboardKey::KEY_SLASH, PressCommand::ToggleKeymapWindow),
-        (KeyboardKey::KEY_C, PressCommand::UseColorPicker),
+        (vec![KeyboardKey::KEY_T], PressCommand::UseTextTool),
+        (vec![KeyboardKey::KEY_B], PressCommand::PickBackgroundColor),
+        (
+            vec![KeyboardKey::KEY_SLASH],
+            PressCommand::ToggleKeymapWindow,
+        ),
+        (vec![KeyboardKey::KEY_C], PressCommand::UseColorPicker),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),

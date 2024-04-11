@@ -70,8 +70,17 @@ pub fn process_key_pressed_events(
     brush: &mut Brush,
     mut state: &mut State,
 ) {
-    for (key, command) in keymap.on_press.iter() {
-        if rl.is_key_pressed(*key) {
+    for (keys, command) in keymap.on_press.iter() {
+        let mut all_keys_pressed = true;
+
+        for key in keys {
+            if !rl.is_key_down(*key) {
+                all_keys_pressed = false;
+                break;
+            }
+        }
+
+        if all_keys_pressed {
             use PressCommand::*;
             match command {
                 ToggleDebugging => *debugging = !*debugging,

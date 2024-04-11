@@ -1,12 +1,11 @@
 use std::ffi::CString;
 
 use raylib::{
-    camera::Camera2D,
     color::Color,
     drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D},
     math::{rrect, rvec2, Rectangle, Vector2},
     rgui::RaylibDrawGui,
-    text::{measure_text_ex, Font, WeakFont},
+    text::{measure_text_ex, WeakFont},
     texture::Texture2D,
 };
 

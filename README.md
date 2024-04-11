@@ -32,8 +32,9 @@ Two types of key inputs:
 | Key | Action |
 |-----|--------|
 | KEY_M | ToggleDebugging |
-| KEY_O | Save |
-| KEY_P | Load |
+| KEY_S + Left Control | Save |
+| KEY_S + Left Control + Left Alt | Save As |
+| KEY_O + Left Control | Load |
 | KEY_Z | Undo |
 | KEY_R | Redo |
 | KEY_E | ChangeBrushType to deleting |
