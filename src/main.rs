@@ -1,7 +1,7 @@
 use std::{
     fmt::Display,
     thread,
-    time::{self, Instant},
+    time::{self, Duration, Instant},
 };
 
 use gui::{
@@ -103,6 +103,9 @@ fn main() {
 
     let font_size = 20.0; // TODO: Make user configurable
 
+    let mut time_since_last_text_deletion = Duration::ZERO;
+    let delay_between_text_deletions = Duration::from_millis(100); // TODO: Make user configurable
+
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
         let current_fps = rl.get_fps();
@@ -116,6 +119,8 @@ fn main() {
         // TODO(reece): Installable so it's searchable as a program
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
+
+        time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
 
         let start_time = Instant::now();
         screen_width = rl.get_screen_width();
@@ -237,43 +242,44 @@ fn main() {
                     }
                 }
             }
-            Mode::TypingText => {
-                loop {
-                    let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
-                    let ch = char_and_key_pressed.0;
-                    let key = char_and_key_pressed.1;
-                    if ch.is_none() && key.is_none() {
-                        break;
-                    }
-
-                    let key = key.unwrap();
-
-                    if let Some(ch) = ch {
-                        append_input_to_working_text(ch, &mut working_text);
-                    }
-
-                    if key == KeyboardKey::KEY_ENTER {
-                        dbg!("Exiting text tool");
-                        if let Some(text) = working_text {
-                            if !text.content.is_empty() {
-                                state.add_text_with_undo(text);
-                            }
-                        }
-
-                        working_text = None;
-                        state.mode = Mode::UsingTool(Tool::Brush);
-                        break;
-                    }
-                    // TODO: Handle holding in backspace, probably a 'delay' between each removal
-                    // if backspace is held
-                    if key == KeyboardKey::KEY_BACKSPACE {
-                        dbg!("Backspace is down");
+            Mode::TypingText => loop {
+                if rl.is_key_down(KeyboardKey::KEY_BACKSPACE) {
+                    if time_since_last_text_deletion >= delay_between_text_deletions {
                         if let Some(text) = working_text.as_mut() {
                             let _removed_char = text.content.pop();
                         }
+                        time_since_last_text_deletion = Duration::ZERO;
                     }
                 }
-            }
+
+                // What is the point of getting this key pressed rather than just checking if the
+                // key is pressed when we want it?
+                let char_and_key_pressed = get_char_and_key_pressed(&mut rl);
+                let ch = char_and_key_pressed.0;
+                let key = char_and_key_pressed.1;
+                if ch.is_none() && key.is_none() {
+                    break;
+                }
+
+                let key = key.unwrap();
+
+                if let Some(ch) = ch {
+                    append_input_to_working_text(ch, &mut working_text);
+                }
+
+                if key == KeyboardKey::KEY_ENTER {
+                    dbg!("Exiting text tool");
+                    if let Some(text) = working_text {
+                        if !text.content.is_empty() {
+                            state.add_text_with_undo(text);
+                        }
+                    }
+
+                    working_text = None;
+                    state.mode = Mode::UsingTool(Tool::Brush);
+                    break;
+                }
+            },
             Mode::ShowingKeymapPanel => {
                 if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
                     if !is_clicking_gui(state.mouse_pos, keymap_panel_bounds) {
