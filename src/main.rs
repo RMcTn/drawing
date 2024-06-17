@@ -16,7 +16,7 @@ use slotmap::{new_key_type, DefaultKey, SlotMap};
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{get_char_pressed, process_key_down_events, process_key_pressed_events};
 use render::{draw_brush_marker, draw_stroke};
-use state::{ForegroundColor, State};
+use state::{ForegroundColor, State, TextSize};
 
 mod gui;
 mod input;
@@ -91,6 +91,7 @@ fn main() {
         foreground_color: Default::default(),
         mode: Mode::UsingTool(Tool::Brush),
         mouse_pos: rvec2(0, 0),
+        text_size: TextSize(50),
     };
 
     let mut is_drawing = false;
@@ -102,7 +103,7 @@ fn main() {
 
     let font = rl.get_font_default();
 
-    let font_size = 20.0; // TODO: Make user configurable
+    let ui_font_size = 20.0; // TODO: Make user configurable
 
     let mut time_since_last_text_deletion = Duration::ZERO;
     let delay_between_text_deletions = Duration::from_millis(100); // TODO: Make user configurable
@@ -224,6 +225,7 @@ fn main() {
                             working_text = Some(Text {
                                 content: "".to_string(),
                                 position: Some(drawing_pos),
+                                size: state.text_size.0 as u32,
                             });
                         }
                         state.mode = Mode::TypingText;
@@ -274,7 +276,9 @@ fn main() {
                 let char_pressed = get_char_pressed();
 
                 match char_pressed {
-                    Some(ch) => append_input_to_working_text(ch, &mut working_text),
+                    Some(ch) => {
+                        append_input_to_working_text(ch, &mut working_text, state.text_size)
+                    }
                     None => break,
                 }
             },
@@ -356,7 +360,7 @@ fn main() {
                             &text.content,
                             pos.x as i32,
                             pos.y as i32,
-                            16,
+                            text.size as i32,
                             Color::BLACK,
                         );
                     }
@@ -381,7 +385,7 @@ fn main() {
                         &working_text.content,
                         pos.x as i32,
                         pos.y as i32,
-                        16,
+                        state.text_size.0 as i32,
                         Color::BLACK,
                     );
                 }
@@ -447,7 +451,7 @@ fn main() {
                 &keymap,
                 keymap_panel_bounds,
                 &font,
-                font_size,
+                ui_font_size,
                 letter_spacing,
             );
         }
@@ -568,6 +572,7 @@ enum Action {
 struct Text {
     content: String,
     position: Option<Vector2>,
+    size: u32,
 }
 
 type CameraZoomPercentageDiff = i32;

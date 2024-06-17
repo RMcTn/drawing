@@ -45,6 +45,16 @@ pub struct State {
     #[serde(skip)] // Don't think we want to save mode yet
     pub mode: Mode,
     pub mouse_pos: Vector2,
+    #[serde(default)]
+    pub text_size: TextSize,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+pub struct TextSize(pub u32);
+impl Default for TextSize {
+    fn default() -> Self {
+        Self(50)
+    }
 }
 
 impl State {
@@ -268,6 +278,7 @@ mod tests {
         let text = Text {
             content: "Stuff".to_string(),
             position: None,
+            size: 20,
         };
 
         state.add_text_with_undo(text);

@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use raylib::color::Color;
-use raylib::consts::KeyboardKey;
 use raylib::math::rrect;
 use raylib::{get_random_value, RaylibHandle};
 
 use crate::persistence::{save, save_with_file_picker};
-use crate::state::State;
+use crate::state::{State, TextSize};
 use crate::{
     persistence, Brush, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Tool,
 };
@@ -174,11 +173,12 @@ pub fn get_char_pressed() -> Option<u32> {
     return Some(char_pressed as u32);
 }
 
-pub fn append_input_to_working_text(ch: u32, working_text: &mut Option<Text>) {
+pub fn append_input_to_working_text(ch: u32, working_text: &mut Option<Text>, text_size: TextSize) {
     if working_text.is_none() {
         let _ = working_text.insert(Text {
             content: "".to_string(),
             position: None,
+            size: text_size.0 as u32,
         });
     }
 
