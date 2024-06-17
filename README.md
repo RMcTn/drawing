@@ -52,8 +52,10 @@ Two types of key inputs:
 | KEY_S | PanCameraVertical down |
 | KEY_L | CameraZoom out |
 | KEY_K | CameraZoom in |
-| KEY_LEFT_BRACKET | ChangeBrushSize smaller |
-| KEY_RIGHT_BRACKET | ChangeBrushSize larger |
+| KEY_LEFT_BRACKET | ChangeBrushSize smaller in brush mode |
+| KEY_RIGHT_BRACKET | ChangeBrushSize larger in brush mode |
+| KEY_LEFT_BRACKET | ChangeTextSize smaller in text mode |
+| KEY_RIGHT_BRACKET | ChangeTextSize larger in text mode |
 | KEY_H | SpawnBrushStrokes |
 
 #### Mouse inputs

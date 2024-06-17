@@ -1,3 +1,4 @@
+use std::cmp;
 use std::collections::HashMap;
 
 use raylib::color::Color;
@@ -37,7 +38,9 @@ pub fn process_key_down_events(
                 // TODO: Changing brush size mid stroke doesn't affect the stroke. Is this the
                 // behaviour we want?
                 ChangeBrushSize(size_diff_per_sec) => {
-                    brush.brush_size += *size_diff_per_sec as f32 * delta_time
+                    if state.mode == Mode::UsingTool(Tool::Brush) {
+                        brush.brush_size += *size_diff_per_sec as f32 * delta_time
+                    }
                 }
                 SpawnBrushStrokes => {
                     // Create bunch of strokes with random coords in screen space for benchmark testing
@@ -57,6 +60,17 @@ pub fn process_key_down_events(
                         generated_stroke.points = generated_points;
 
                         state.add_stroke_with_undo(generated_stroke);
+                    }
+                }
+                ChangeTextSize(size_diff_per_sec) => {
+                    if state.mode == Mode::UsingTool(Tool::Text) {
+                        let diff_to_apply =
+                            cmp::max((*size_diff_per_sec as f32 * delta_time) as u32, 1);
+                        if *size_diff_per_sec > 0 {
+                            state.text_size.0 = state.text_size.0.saturating_add(diff_to_apply);
+                        } else {
+                            state.text_size.0 = state.text_size.0.saturating_sub(diff_to_apply);
+                        }
                     }
                 }
             }

@@ -584,6 +584,7 @@ enum HoldCommand {
     PanCameraHorizontal(DiffPerSecond),
     PanCameraVertical(DiffPerSecond),
     ChangeBrushSize(DiffPerSecond),
+    ChangeTextSize(DiffPerSecond),
     SpawnBrushStrokes,
 }
 
@@ -662,6 +663,14 @@ fn default_keymap() -> Keymap {
         (
             KeyboardKey::KEY_RIGHT_BRACKET,
             HoldCommand::ChangeBrushSize(50),
+        ),
+        (
+            KeyboardKey::KEY_LEFT_BRACKET,
+            HoldCommand::ChangeTextSize(-50),
+        ),
+        (
+            KeyboardKey::KEY_RIGHT_BRACKET,
+            HoldCommand::ChangeTextSize(50),
         ),
         (KeyboardKey::KEY_H, HoldCommand::SpawnBrushStrokes),
     ]);

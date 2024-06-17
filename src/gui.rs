@@ -9,7 +9,7 @@ use raylib::{
     texture::Texture2D,
 };
 
-use crate::{state::State, Brush, BrushType, Keymap};
+use crate::{state::State, Brush, BrushType, Keymap, Mode, Tool};
 
 pub fn is_clicking_gui(mouse_pos: Vector2, bounds: Rectangle) -> bool {
     return bounds.check_collision_point_rec(mouse_pos);
@@ -21,9 +21,15 @@ pub fn draw_info_ui(drawing: &mut RaylibDrawHandle, state: &State, brush: &Brush
         BrushType::Deleting => "Deleting",
     };
     let brush_size_str = format!("Brush size: {}", brush.brush_size.to_string());
+    let text_size_str = format!("Text size: {}", state.text_size.0);
     let zoom_str = format!("Zoom: {:.2}", state.camera.zoom);
+    if state.mode == Mode::UsingTool(Tool::Brush) {
+        drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
+    }
+    if state.mode == Mode::UsingTool(Tool::Text) || state.mode == Mode::TypingText {
+        drawing.draw_text(&text_size_str, 5, 30, 30, Color::RED);
+    }
     drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
-    drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
     drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
 
     let mode_str = format!("Mode: {:?}", state.mode);
