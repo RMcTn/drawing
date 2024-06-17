@@ -386,6 +386,16 @@ fn main() {
                 draw_brush_marker(&mut drawing_camera, drawing_pos, &brush);
             }
 
+            if state.mode == Mode::UsingTool(Tool::Text) {
+                drawing_camera.draw_text(
+                    "Your text here",
+                    drawing_pos.x as i32,
+                    drawing_pos.y as i32,
+                    state.text_size.0 as i32,
+                    Color::BLACK,
+                );
+            }
+
             if let Some(working_text) = &working_text {
                 if let Some(pos) = working_text.position {
                     drawing_camera.draw_text(
@@ -501,6 +511,8 @@ fn apply_mouse_wheel_text_size(mouse_wheel_diff: f32, current_text_size: &mut Te
     // size being a float. It might be easier if we treat text size as a float, then cast down when
     // we need it to draw. Idk if that 'makes sense' as a float, but it would make working with it
     // easier
+
+    // TODO: FIXME: Scrolling to change text size feels really shitty as the text size gets larger
     let new_size_diff = cmp::max(mouse_wheel_diff as u32, 1);
 
     if mouse_wheel_diff == 0.0 {
