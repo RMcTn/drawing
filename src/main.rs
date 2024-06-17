@@ -1,4 +1,5 @@
 use std::{
+    cmp,
     collections::HashMap,
     fmt::Display,
     thread,
@@ -325,7 +326,13 @@ fn main() {
         }
 
         if rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL) {
-            apply_mouse_wheel_brush_size(mouse_wheel_diff, &mut brush);
+            if state.mode == Mode::UsingTool(Tool::Brush) {
+                apply_mouse_wheel_brush_size(mouse_wheel_diff, &mut brush);
+            }
+
+            if state.mode == Mode::UsingTool(Tool::Text) || state.mode == Mode::TypingText {
+                apply_mouse_wheel_text_size(mouse_wheel_diff, &mut state.text_size);
+            }
         }
 
         clamp_brush_size(&mut brush);
@@ -487,6 +494,24 @@ fn apply_mouse_wheel_zoom(mouse_wheel_diff: f32, camera: &mut Camera2D) {
 fn apply_mouse_wheel_brush_size(mouse_wheel_diff: f32, brush: &mut Brush) {
     let mouse_wheel_amplifying = 3.50;
     brush.brush_size += mouse_wheel_diff * mouse_wheel_amplifying;
+}
+
+fn apply_mouse_wheel_text_size(mouse_wheel_diff: f32, current_text_size: &mut TextSize) {
+    // TODO: FIXME: Decreasing text size can be different from increasing text size due to text
+    // size being a float. It might be easier if we treat text size as a float, then cast down when
+    // we need it to draw. Idk if that 'makes sense' as a float, but it would make working with it
+    // easier
+    let new_size_diff = cmp::max(mouse_wheel_diff as u32, 1);
+
+    if mouse_wheel_diff == 0.0 {
+        return;
+    }
+
+    if mouse_wheel_diff > 0.0 {
+        current_text_size.0 = current_text_size.0.saturating_add(new_size_diff)
+    } else {
+        current_text_size.0 = current_text_size.0.saturating_sub(new_size_diff)
+    }
 }
 
 fn clamp_camera_zoom(camera: &mut Camera2D) {

@@ -65,7 +65,8 @@ Two types of key inputs:
 | Right click | Brush Color palette |
 | Middle click | Pan |
 | Mouse wheel | Zoom in/Zoom out |
-| Ctrl + Mouse wheel | Change brush size |
+| Ctrl + Mouse wheel | Change brush size in brush mode|
+| Ctrl + Mouse wheel | Change text size in text or typing mode|
 
 ### Text Tool
 With the Text Tool selected, hover the mouse where you want the text to begin and start to type. Press ENTER to finish.  
