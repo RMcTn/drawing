@@ -187,12 +187,18 @@ pub fn get_char_pressed() -> Option<u32> {
     return Some(char_pressed as u32);
 }
 
-pub fn append_input_to_working_text(ch: u32, working_text: &mut Option<Text>, text_size: TextSize) {
+pub fn append_input_to_working_text(
+    ch: u32,
+    working_text: &mut Option<Text>,
+    text_size: TextSize,
+    text_color: Color,
+) {
     if working_text.is_none() {
         let _ = working_text.insert(Text {
             content: "".to_string(),
             position: None,
             size: text_size.0 as u32,
+            color: text_color,
         });
     }
 

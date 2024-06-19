@@ -93,6 +93,7 @@ fn main() {
         mode: Mode::UsingTool(Tool::Brush),
         mouse_pos: rvec2(0, 0),
         text_size: TextSize(50),
+        text_color: Color::BLACK,
     };
 
     let mut is_drawing = false;
@@ -227,6 +228,7 @@ fn main() {
                                 content: "".to_string(),
                                 position: Some(drawing_pos),
                                 size: state.text_size.0 as u32,
+                                color: state.text_color,
                             });
                         }
                         state.mode = Mode::TypingText;
@@ -277,9 +279,12 @@ fn main() {
                 let char_pressed = get_char_pressed();
 
                 match char_pressed {
-                    Some(ch) => {
-                        append_input_to_working_text(ch, &mut working_text, state.text_size)
-                    }
+                    Some(ch) => append_input_to_working_text(
+                        ch,
+                        &mut working_text,
+                        state.text_size,
+                        state.text_color,
+                    ),
                     None => break,
                 }
             },
@@ -368,7 +373,7 @@ fn main() {
                             pos.x as i32,
                             pos.y as i32,
                             text.size as i32,
-                            Color::BLACK,
+                            text.color,
                         );
                     }
                 }
@@ -392,7 +397,7 @@ fn main() {
                     drawing_pos.x as i32,
                     drawing_pos.y as i32,
                     state.text_size.0 as i32,
-                    Color::BLACK,
+                    state.text_color,
                 );
             }
 
@@ -403,7 +408,7 @@ fn main() {
                         pos.x as i32,
                         pos.y as i32,
                         state.text_size.0 as i32,
-                        Color::BLACK,
+                        state.text_color,
                     );
                 }
             }
@@ -610,6 +615,7 @@ struct Text {
     content: String,
     position: Option<Vector2>,
     size: u32,
+    color: Color,
 }
 
 type CameraZoomPercentageDiff = i32;

@@ -47,6 +47,7 @@ pub struct State {
     pub mouse_pos: Vector2,
     #[serde(default)]
     pub text_size: TextSize,
+    pub text_color: Color,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
