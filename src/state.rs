@@ -241,6 +241,10 @@ impl State {
             }
         }
     }
+
+    pub fn using_text_tool_or_typing(&self) -> bool {
+        return self.mode == Mode::UsingTool(crate::Tool::Text) || self.mode == Mode::TypingText;
+    }
 }
 
 #[derive(Deserialize, Serialize)]

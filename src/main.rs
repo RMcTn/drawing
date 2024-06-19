@@ -101,7 +101,7 @@ fn main() {
     let mut working_text: Option<Text> = None;
     let mut last_mouse_pos = rl.get_mouse_position();
 
-    let mut brush_color_picker_info: Option<GuiColorPickerInfo> = None;
+    let mut color_picker_info: Option<GuiColorPickerInfo> = None;
 
     let font = rl.get_font_default();
 
@@ -160,6 +160,24 @@ fn main() {
                 * screen_width as usize
                 + state.mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as usize];
 
+        // color picker activate check
+        if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
+            if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
+                let picker_width = 100;
+                let picker_height = 100;
+                color_picker_info = Some(GuiColorPickerInfo {
+                    initiation_pos: state.mouse_pos,
+                    bounds: rrect(
+                        state.mouse_pos.x - (picker_width as f32 / 2.0),
+                        state.mouse_pos.y - (picker_height as f32 / 2.0),
+                        picker_width,
+                        picker_height,
+                    ),
+                    picker_slider_x_padding: 30.0,
+                });
+            }
+        }
+
         match state.mode {
             Mode::UsingTool(tool) => match tool {
                 Tool::Brush => {
@@ -167,9 +185,9 @@ fn main() {
                     // color picker - Maybe a little delay before drawing after clicking off the
                     // picker?
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                        if let Some(picker_info) = &brush_color_picker_info {
+                        if let Some(picker_info) = &color_picker_info {
                             if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                                brush_color_picker_info = None;
+                                color_picker_info = None;
                             }
                         } else {
                             if brush.brush_type == BrushType::Deleting {
@@ -203,35 +221,26 @@ fn main() {
                         }
                         is_drawing = false;
                     }
-
-                    if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
-                        let picker_width = 100;
-                        let picker_height = 100;
-                        brush_color_picker_info = Some(GuiColorPickerInfo {
-                            initiation_pos: state.mouse_pos,
-                            bounds: rrect(
-                                state.mouse_pos.x - (picker_width as f32 / 2.0),
-                                state.mouse_pos.y - (picker_height as f32 / 2.0),
-                                picker_width,
-                                picker_height,
-                            ),
-                            picker_slider_x_padding: 30.0,
-                        });
-                    }
                 }
                 Tool::Text => {
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                        dbg!("Hit left click on text tool");
-                        // Start text
-                        if working_text.is_none() {
-                            working_text = Some(Text {
-                                content: "".to_string(),
-                                position: Some(drawing_pos),
-                                size: state.text_size.0 as u32,
-                                color: state.text_color,
-                            });
+                        if let Some(picker_info) = &color_picker_info {
+                            if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
+                                color_picker_info = None;
+                            }
+                        } else {
+                            dbg!("Hit left click on text tool");
+                            // Start text
+                            if working_text.is_none() {
+                                working_text = Some(Text {
+                                    content: "".to_string(),
+                                    position: Some(drawing_pos),
+                                    size: state.text_size.0 as u32,
+                                    color: state.text_color,
+                                });
+                            }
+                            state.mode = Mode::TypingText;
                         }
-                        state.mode = Mode::TypingText;
                     }
                 }
                 Tool::ColorPicker => {
@@ -454,13 +463,20 @@ fn main() {
                 drawing.gui_color_picker(color_picker.bounds, state.background_color.0);
         }
 
-        if let Some(picker_info) = &mut brush_color_picker_info {
-            // TODO: Scale the GUI?
-            if !is_drawing {
-                // Hide when not drawing
-                state.foreground_color.0 =
-                    drawing.gui_color_picker(picker_info.bounds, state.foreground_color.0);
+        if let Some(picker_info) = &mut color_picker_info {
+            if state.using_text_tool_or_typing() {
+                state.text_color.0 =
+                    drawing.gui_color_picker(picker_info.bounds, state.text_color.0);
             }
+
+            if state.mode == Mode::UsingTool(Tool::Brush) {
+                if !is_drawing {
+                    // Hide when not drawing
+                    state.foreground_color.0 =
+                        drawing.gui_color_picker(picker_info.bounds, state.foreground_color.0);
+                }
+            }
+            // TODO: Scale the GUI?
             if debugging {
                 drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1, Color::GOLD);
             }

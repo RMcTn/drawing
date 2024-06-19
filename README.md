@@ -62,7 +62,8 @@ Two types of key inputs:
 | Input | Action |
 |-----|--------|
 | Left click | Draw |
-| Right click | Brush Color palette |
+| Right click | Brush tool Color palette |
+| Right click | Text tool Color palette |
 | Middle click | Pan |
 | Mouse wheel | Zoom in/Zoom out |
 | Ctrl + Mouse wheel | Change brush size in brush mode|
