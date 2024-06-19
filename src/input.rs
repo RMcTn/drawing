@@ -6,7 +6,7 @@ use raylib::math::rrect;
 use raylib::{get_random_value, RaylibHandle};
 
 use crate::persistence::{save, save_with_file_picker};
-use crate::state::{State, TextSize};
+use crate::state::{State, TextColor, TextSize};
 use crate::{
     persistence, Brush, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Tool,
 };
@@ -191,7 +191,7 @@ pub fn append_input_to_working_text(
     ch: u32,
     working_text: &mut Option<Text>,
     text_size: TextSize,
-    text_color: Color,
+    text_color: TextColor,
 ) {
     if working_text.is_none() {
         let _ = working_text.insert(Text {

@@ -13,7 +13,7 @@ pub struct BackgroundColor(pub Color);
 
 impl Default for BackgroundColor {
     fn default() -> Self {
-        BackgroundColor(Color::WHITE)
+        Self(Color::WHITE)
     }
 }
 
@@ -22,7 +22,16 @@ pub struct ForegroundColor(pub Color);
 
 impl Default for ForegroundColor {
     fn default() -> Self {
-        ForegroundColor(Color::BLACK)
+        Self(Color::BLACK)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub struct TextColor(pub Color);
+
+impl Default for TextColor {
+    fn default() -> Self {
+        Self(Color::BLACK)
     }
 }
 
@@ -47,7 +56,8 @@ pub struct State {
     pub mouse_pos: Vector2,
     #[serde(default)]
     pub text_size: TextSize,
-    pub text_color: Color,
+    #[serde(default)]
+    pub text_color: TextColor,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize)]
@@ -280,6 +290,7 @@ mod tests {
             content: "Stuff".to_string(),
             position: None,
             size: 20,
+            color: crate::state::TextColor(Color::BLACK),
         };
 
         state.add_text_with_undo(text);

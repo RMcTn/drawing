@@ -17,7 +17,7 @@ use slotmap::{new_key_type, DefaultKey, SlotMap};
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{get_char_pressed, process_key_down_events, process_key_pressed_events};
 use render::{draw_brush_marker, draw_stroke};
-use state::{ForegroundColor, State, TextSize};
+use state::{ForegroundColor, State, TextColor, TextSize};
 
 mod gui;
 mod input;
@@ -93,7 +93,7 @@ fn main() {
         mode: Mode::UsingTool(Tool::Brush),
         mouse_pos: rvec2(0, 0),
         text_size: TextSize(50),
-        text_color: Color::BLACK,
+        text_color: Default::default(),
     };
 
     let mut is_drawing = false;
@@ -373,7 +373,7 @@ fn main() {
                             pos.x as i32,
                             pos.y as i32,
                             text.size as i32,
-                            text.color,
+                            text.color.0,
                         );
                     }
                 }
@@ -397,7 +397,7 @@ fn main() {
                     drawing_pos.x as i32,
                     drawing_pos.y as i32,
                     state.text_size.0 as i32,
-                    state.text_color,
+                    state.text_color.0,
                 );
             }
 
@@ -408,7 +408,7 @@ fn main() {
                         pos.x as i32,
                         pos.y as i32,
                         state.text_size.0 as i32,
-                        state.text_color,
+                        state.text_color.0,
                     );
                 }
             }
@@ -615,7 +615,8 @@ struct Text {
     content: String,
     position: Option<Vector2>,
     size: u32,
-    color: Color,
+    #[serde(default)]
+    color: TextColor,
 }
 
 type CameraZoomPercentageDiff = i32;
