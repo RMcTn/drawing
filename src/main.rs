@@ -150,6 +150,7 @@ fn main() {
         );
 
         let screen = rl.get_screen_data(&thread);
+        let mut color_picker_closed_this_frame = false;
 
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
@@ -187,7 +188,10 @@ fn main() {
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
                         if let Some(picker_info) = &color_picker_info {
                             if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                                color_picker_info = None;
+                                close_color_picker(
+                                    &mut color_picker_info,
+                                    &mut color_picker_closed_this_frame,
+                                );
                             }
                         } else {
                             if brush.brush_type == BrushType::Deleting {
@@ -226,9 +230,18 @@ fn main() {
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
                         if let Some(picker_info) = &color_picker_info {
                             if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                                color_picker_info = None;
+                                close_color_picker(
+                                    &mut color_picker_info,
+                                    &mut color_picker_closed_this_frame,
+                                );
                             }
-                        } else {
+                        }
+                    }
+
+                    if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                        if !is_color_picker_active(&color_picker_info)
+                            && !color_picker_closed_this_frame
+                        {
                             dbg!("Hit left click on text tool");
                             // Start text
                             if working_text.is_none() {
@@ -794,4 +807,18 @@ fn should_show_brush_marker(mode: Mode) -> bool {
         Mode::ShowingKeymapPanel => true,
         _ => false,
     }
+}
+
+fn is_color_picker_active(color_picker_info: &Option<GuiColorPickerInfo>) -> bool {
+    // TODO: REFACTOR: Feels like this should be a part of state, or gui state?
+    return color_picker_info.is_some();
+}
+
+fn close_color_picker(
+    color_picker_info: &mut Option<GuiColorPickerInfo>,
+    color_picker_closed_this_frame: &mut bool,
+) {
+    // TODO: REFACTOR: This also feels like a gui state thing
+    *color_picker_info = None;
+    *color_picker_closed_this_frame = true;
 }
