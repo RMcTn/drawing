@@ -295,6 +295,7 @@ fn main() {
 
                     working_text = None;
                     state.mode = Mode::UsingTool(Tool::Brush);
+                    close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
                     break;
                 }
 
