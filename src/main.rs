@@ -481,6 +481,9 @@ fn main() {
             if state.using_text_tool_or_typing() {
                 state.text_color.0 =
                     drawing.gui_color_picker(picker_info.bounds, state.text_color.0);
+                if let Some(ref mut text) = working_text {
+                    text.color = state.text_color;
+                }
             }
 
             if state.mode == Mode::UsingTool(Tool::Brush) {
