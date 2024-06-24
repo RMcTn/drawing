@@ -179,6 +179,15 @@ fn main() {
             }
         }
 
+        // color picker closer check
+        if let Some(picker_info) = &color_picker_info {
+            if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
+                if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                    close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
+                }
+            }
+        }
+
         match state.mode {
             Mode::UsingTool(tool) => match tool {
                 Tool::Brush => {
@@ -186,14 +195,7 @@ fn main() {
                     // color picker - Maybe a little delay before drawing after clicking off the
                     // picker?
                     if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                        if let Some(picker_info) = &color_picker_info {
-                            if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                                close_color_picker(
-                                    &mut color_picker_info,
-                                    &mut color_picker_closed_this_frame,
-                                );
-                            }
-                        } else {
+                        if !is_color_picker_active(&color_picker_info) {
                             if brush.brush_type == BrushType::Deleting {
                                 let strokes_to_delete =
                                     state.strokes_within_point(drawing_pos, brush.brush_size);
@@ -227,17 +229,6 @@ fn main() {
                     }
                 }
                 Tool::Text => {
-                    if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
-                        if let Some(picker_info) = &color_picker_info {
-                            if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                                close_color_picker(
-                                    &mut color_picker_info,
-                                    &mut color_picker_closed_this_frame,
-                                );
-                            }
-                        }
-                    }
-
                     if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
                         if !is_color_picker_active(&color_picker_info)
                             && !color_picker_closed_this_frame
@@ -275,7 +266,7 @@ fn main() {
                     }
                 }
             }
-            Mode::TypingText => loop {
+            Mode::TypingText => {
                 if rl.is_key_down(KeyboardKey::KEY_BACKSPACE) {
                     if time_since_last_text_deletion >= delay_between_text_deletions {
                         if let Some(text) = working_text.as_mut() {
@@ -295,12 +286,9 @@ fn main() {
                         }
                     }
 
-                    // BUG: TODO: FIXME: Couldn't click off the color picker whilst in typing text
-
                     working_text = None;
                     state.mode = Mode::UsingTool(Tool::Brush);
                     close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
-                    break;
                 }
 
                 let char_pressed = get_char_pressed();
@@ -312,9 +300,9 @@ fn main() {
                         state.text_size,
                         state.text_color,
                     ),
-                    None => break,
+                    None => (),
                 }
-            },
+            }
             Mode::ShowingKeymapPanel => {
                 if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
                     if !is_clicking_gui(state.mouse_pos, keymap_panel_bounds) {
