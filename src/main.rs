@@ -287,11 +287,15 @@ fn main() {
 
                 if rl.is_key_pressed(KeyboardKey::KEY_ENTER) {
                     dbg!("Exiting text tool");
-                    if let Some(text) = working_text {
+                    if let Some(mut text) = working_text {
                         if !text.content.is_empty() {
+                            text.color = state.text_color;
+                            text.size = state.text_size.0;
                             state.add_text_with_undo(text);
                         }
                     }
+
+                    // BUG: TODO: FIXME: Couldn't click off the color picker whilst in typing text
 
                     working_text = None;
                     state.mode = Mode::UsingTool(Tool::Brush);
