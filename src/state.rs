@@ -60,7 +60,7 @@ pub struct State {
     pub text_color: TextColor,
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct TextSize(pub u32);
 impl Default for TextSize {
     fn default() -> Self {
@@ -261,7 +261,10 @@ struct Camera2DDef {
 mod tests {
     use raylib::prelude::Color;
 
-    use crate::Text;
+    use crate::{
+        state::{TextColor, TextSize},
+        Text,
+    };
 
     use super::State;
 
@@ -293,8 +296,8 @@ mod tests {
         let text = Text {
             content: "Stuff".to_string(),
             position: None,
-            size: 20,
-            color: crate::state::TextColor(Color::BLACK),
+            size: TextSize(20),
+            color: TextColor(Color::BLACK),
         };
 
         state.add_text_with_undo(text);

@@ -197,7 +197,7 @@ pub fn append_input_to_working_text(
         let _ = working_text.insert(Text {
             content: "".to_string(),
             position: None,
-            size: text_size.0 as u32,
+            size: text_size,
             color: text_color,
         });
     }

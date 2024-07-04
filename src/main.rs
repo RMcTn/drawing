@@ -239,7 +239,7 @@ fn main() {
                                 working_text = Some(Text {
                                     content: "".to_string(),
                                     position: Some(drawing_pos),
-                                    size: state.text_size.0 as u32,
+                                    size: state.text_size,
                                     color: state.text_color,
                                 });
                             }
@@ -281,7 +281,7 @@ fn main() {
                     if let Some(mut text) = working_text {
                         if !text.content.is_empty() {
                             text.color = state.text_color;
-                            text.size = state.text_size.0;
+                            text.size = state.text_size;
                             state.add_text_with_undo(text);
                         }
                     }
@@ -387,7 +387,7 @@ fn main() {
                             &text.content,
                             pos.x as i32,
                             pos.y as i32,
-                            text.size as i32,
+                            text.size.0 as i32,
                             text.color.0,
                         );
                     }
@@ -639,7 +639,8 @@ enum Action {
 struct Text {
     content: String,
     position: Option<Vector2>,
-    size: u32,
+    #[serde(default)]
+    size: TextSize,
     #[serde(default)]
     color: TextColor,
 }
