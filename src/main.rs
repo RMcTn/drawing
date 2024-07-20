@@ -188,6 +188,7 @@ fn main() {
                     // TODO: FIXME: Quite easy to accidentally draw when coming out of background
                     // color picker - Maybe a little delay before drawing after clicking off the
                     // picker?
+
                     if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
                         if !is_color_picker_active(&color_picker_info) {
                             if brush.brush_type == BrushType::Deleting {
@@ -210,7 +211,7 @@ fn main() {
                             }
                         }
                     }
-                    if rl.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
+                    if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT) {
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
                         // the brush stroke unless we change back to brush mode
