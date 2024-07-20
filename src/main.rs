@@ -34,7 +34,7 @@ fn main() {
 
     // TODO: Selectable objects (Like selecting existing text and moving it)
 
-    let (mut rl, thread) = raylib::init()
+    let (mut rl, rl_thread) = raylib::init()
         .size(screen_width, screen_height)
         .resizable()
         .title("Window")
@@ -44,14 +44,10 @@ fn main() {
                                          // TODO: Configurable scaling
 
     let color_dropper_icon_bytes = include_bytes!("../assets/color-dropper.png").to_vec();
-    let color_dropper_icon_image = Image::load_image_from_mem(
-        ".png",
-        &color_dropper_icon_bytes,
-        color_dropper_icon_bytes.len() as i32,
-    )
-    .expect("Couldn't create color dropper icon from packaged color dropper image");
+    let color_dropper_icon_image = Image::load_image_from_mem(".png", &color_dropper_icon_bytes)
+        .expect("Couldn't create color dropper icon from packaged color dropper image");
     let color_dropper_icon = rl
-        .load_texture_from_image(&thread, &color_dropper_icon_image)
+        .load_texture_from_image(&rl_thread, &color_dropper_icon_image)
         .expect("Couldn't find color dropper icon file");
     let color_dropper_width = color_dropper_icon.width(); // REFACTOR: Will want something similar
                                                           // for other tool icons
@@ -151,17 +147,13 @@ fn main() {
             screen_height as f32 - (keymap_panel_padding_y * 2.0),
         );
 
-        let screen = rl.get_screen_data(&thread);
         let mut color_picker_closed_this_frame = false;
 
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
         let pixel_color_at_mouse_pos =
             // Give a little wiggle room when moving off the edges of the window, stops a crash :)
-            screen.get_image_data()[state.mouse_pos.y.clamp(0.0, (screen_height - 1) as f32)
-                as usize
-                * screen_width as usize
-                + state.mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as usize];
+            rl.load_image_from_screen(&rl_thread).get_color(state.mouse_pos.x as i32, state.mouse_pos.y as i32);
 
         // color picker activate check
         if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
@@ -372,7 +364,7 @@ fn main() {
             screen_height as f32 / state.camera.zoom,
         );
 
-        let mut drawing = rl.begin_drawing(&thread);
+        let mut drawing = rl.begin_drawing(&rl_thread);
         {
             let mut drawing_camera = drawing.begin_mode2D(state.camera);
 
