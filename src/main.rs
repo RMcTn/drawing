@@ -1,6 +1,7 @@
 use std::{
     cmp,
     collections::HashMap,
+    ffi::CString,
     fmt::Display,
     thread,
     time::{self, Duration, Instant},
@@ -460,13 +461,13 @@ fn main() {
 
         if let Mode::PickingBackgroundColor(color_picker) = state.mode {
             state.background_color.0 =
-                drawing.gui_color_picker(color_picker.bounds, state.background_color.0);
+                drawing.gui_color_picker(color_picker.bounds, None, state.background_color.0);
         }
 
         if let Some(picker_info) = &mut color_picker_info {
             if state.using_text_tool_or_typing() {
                 state.text_color.0 =
-                    drawing.gui_color_picker(picker_info.bounds, state.text_color.0);
+                    drawing.gui_color_picker(picker_info.bounds, None, state.text_color.0);
                 if let Some(ref mut text) = working_text {
                     text.color = state.text_color;
                 }
@@ -475,8 +476,11 @@ fn main() {
             if state.mode == Mode::UsingTool(Tool::Brush) {
                 if !is_drawing {
                     // Hide when not drawing
-                    state.foreground_color.0 =
-                        drawing.gui_color_picker(picker_info.bounds, state.foreground_color.0);
+                    state.foreground_color.0 = drawing.gui_color_picker(
+                        picker_info.bounds,
+                        None,
+                        state.foreground_color.0,
+                    );
                 }
             }
             // TODO: Scale the GUI?
