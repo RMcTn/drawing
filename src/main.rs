@@ -1,7 +1,6 @@
 use std::{
     cmp,
     collections::HashMap,
-    ffi::CString,
     fmt::Display,
     thread,
     time::{self, Duration, Instant},
@@ -485,7 +484,7 @@ fn main() {
             }
             // TODO: Scale the GUI?
             if debugging {
-                drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1, Color::GOLD);
+                drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1.0, Color::GOLD);
             }
         }
 
