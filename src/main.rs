@@ -32,6 +32,8 @@ fn main() {
     let mut screen_width = 1280;
     let mut screen_height = 720;
 
+    // TODO: Selectable objects (Like selecting existing text and moving it)
+
     let (mut rl, thread) = raylib::init()
         .size(screen_width, screen_height)
         .resizable()

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use raylib::color::Color;
 use raylib::math::rrect;
-use raylib::{get_random_value, RaylibHandle};
+use raylib::RaylibHandle;
 
 use crate::persistence::{save, save_with_file_picker};
 use crate::state::{State, TextColor, TextSize};
@@ -47,8 +47,8 @@ pub fn process_key_down_events(
                     // @SPEEDUP Allow passed in number of points to allocate to new Stroke
 
                     for _ in 0..50 {
-                        let initial_x: i32 = get_random_value(0, screen_width);
-                        let initial_y: i32 = get_random_value(0, screen_height);
+                        let initial_x: i32 = rl.get_random_value(0..screen_width);
+                        let initial_y: i32 = rl.get_random_value(0..screen_height);
                         let generated_points: Vec<Point> = (1..10)
                             .map(|n| Point {
                                 x: (initial_x + n) as f32,
