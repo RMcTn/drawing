@@ -1,11 +1,10 @@
-use std::ffi::CString;
-
 use raylib::{
     color::Color,
     drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D},
     math::{rrect, rvec2, Rectangle, Vector2},
     rgui::RaylibDrawGui,
-    text::{measure_text_ex, WeakFont},
+    rstr,
+    text::{RaylibFont, WeakFont},
     texture::Texture2D,
 };
 
@@ -82,10 +81,7 @@ pub fn draw_keymap(
 ) {
     // TODO: FIXME: Text will happily overflow the bounds of the panel if it's long enough
 
-    drawing.gui_group_box(
-        keymap_panel_bounds,
-        Some(&CString::new("Keymappings").unwrap()),
-    );
+    drawing.gui_group_box(keymap_panel_bounds, Some(rstr!("Keymappings")));
 
     let spacing_y = 30.0;
     let spacing_x = 30.0;
@@ -105,46 +101,25 @@ pub fn draw_keymap(
     let mut last_y_pos = key_hold_bounds.y;
     // TODO: Pretty print
     // TODO: Scrolling
+    // TODO: REGRESSION: Word wrap
     for (key, command) in &keymap.on_hold {
         let str = format!("{:?} - {:?}", key, command);
-        let text_measurements = measure_text_ex(&font, &str, font_size, letter_spacing);
+        let text_measurements = font.measure_text(&str, font_size, letter_spacing);
         let text_y_pos = last_y_pos + spacing_y + text_measurements.y;
-        drawing.draw_text_rec(
-            &font,
-            &str,
-            rrect(
-                key_hold_bounds.x,
-                text_y_pos,
-                key_hold_bounds.width,
-                key_hold_bounds.height,
-            ),
-            font_size,
-            letter_spacing,
-            true,
-            Color::GOLD,
-        );
+
+        let text_pos = rvec2(key_hold_bounds.x, text_y_pos);
+        drawing.draw_text_codepoints(font, &str, text_pos, font_size, letter_spacing, Color::GOLD);
         last_y_pos = text_y_pos;
     }
 
     let mut last_y_pos = key_press_bounds.y;
     for (key, command) in &keymap.on_press {
         let str = format!("{:?} - {:?}", key, command);
-        let text_measurements = measure_text_ex(&font, &str, font_size, letter_spacing);
+        let text_measurements = font.measure_text(&str, font_size, letter_spacing);
         let text_y_pos = last_y_pos + spacing_y + text_measurements.y;
-        drawing.draw_text_rec(
-            &font,
-            &str,
-            rrect(
-                key_press_bounds.x,
-                text_y_pos,
-                key_press_bounds.width,
-                key_press_bounds.height,
-            ),
-            font_size,
-            letter_spacing,
-            true,
-            Color::GOLD,
-        );
+
+        let text_pos = rvec2(key_press_bounds.x, text_y_pos);
+        drawing.draw_text_codepoints(font, &str, text_pos, font_size, letter_spacing, Color::GOLD);
         last_y_pos = text_y_pos;
     }
 }
