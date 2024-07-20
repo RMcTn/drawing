@@ -157,7 +157,7 @@ fn main() {
 
         // color picker activate check
         if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
-            if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
+            if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT) {
                 let picker_width = 100;
                 let picker_height = 100;
                 color_picker_info = Some(GuiColorPickerInfo {
@@ -176,7 +176,7 @@ fn main() {
         // color picker closer check
         if let Some(picker_info) = &color_picker_info {
             if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
                     close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
                 }
             }
@@ -188,7 +188,7 @@ fn main() {
                     // TODO: FIXME: Quite easy to accidentally draw when coming out of background
                     // color picker - Maybe a little delay before drawing after clicking off the
                     // picker?
-                    if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
                         if !is_color_picker_active(&color_picker_info) {
                             if brush.brush_type == BrushType::Deleting {
                                 let strokes_to_delete =
@@ -210,7 +210,7 @@ fn main() {
                             }
                         }
                     }
-                    if rl.is_mouse_button_up(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if rl.is_mouse_button_up(MouseButton::MOUSE_BUTTON_LEFT) {
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
                         // the brush stroke unless we change back to brush mode
@@ -223,7 +223,7 @@ fn main() {
                     }
                 }
                 Tool::Text => {
-                    if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
                         if !is_color_picker_active(&color_picker_info)
                             && !color_picker_closed_this_frame
                         {
@@ -242,7 +242,7 @@ fn main() {
                     }
                 }
                 Tool::ColorPicker => {
-                    if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+                    if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
                         // NOTE: This literally is whatever color is at the screen. This includes
                         // GUI elements! If it gets annoying enough, it can be changed, but this
                         // was simpler
@@ -254,7 +254,7 @@ fn main() {
                 }
             },
             Mode::PickingBackgroundColor(color_picker) => {
-                if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
                     if !is_clicking_gui(state.mouse_pos, color_picker.bounds_with_slider()) {
                         state.mode = Mode::UsingTool(Tool::Brush);
                     }
@@ -298,7 +298,7 @@ fn main() {
                 }
             }
             Mode::ShowingKeymapPanel => {
-                if rl.is_mouse_button_pressed(MouseButton::MOUSE_LEFT_BUTTON) {
+                if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
                     if !is_clicking_gui(state.mouse_pos, keymap_panel_bounds) {
                         state.mode = Mode::default();
                     }
@@ -330,7 +330,7 @@ fn main() {
         }
 
         // TODO: Configurable mouse buttons
-        if rl.is_mouse_button_down(MouseButton::MOUSE_MIDDLE_BUTTON) {
+        if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_MIDDLE) {
             apply_mouse_drag_to_camera(state.mouse_pos, last_mouse_pos, &mut state.camera);
         }
 
