@@ -1,6 +1,7 @@
 use std::cmp;
 use std::collections::HashMap;
 
+use raylib::automation::AutomationEventList;
 use raylib::color::Color;
 use raylib::math::rrect;
 use raylib::RaylibHandle;
@@ -9,6 +10,7 @@ use crate::persistence::{save, save_with_file_picker};
 use crate::state::{State, TextColor, TextSize};
 use crate::{
     persistence, Brush, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Tool,
+    RECORDING_OUTPUT_PATH,
 };
 
 pub fn process_key_down_events(
@@ -85,6 +87,7 @@ pub fn process_key_pressed_events(
     brush: &mut Brush,
     mut state: &mut State,
     processed_commands: &mut HashMap<PressCommand, bool>,
+    automation_events: &mut AutomationEventList,
 ) {
     for (keys, command) in keymap.on_press.iter() {
         let mut all_keys_pressed = true;
@@ -168,6 +171,24 @@ pub fn process_key_pressed_events(
                     Mode::ShowingKeymapPanel => state.mode = Mode::default(),
                     _ => state.mode = Mode::ShowingKeymapPanel,
                 },
+                ToggleRecording => {
+                    if state.is_recording_inputs {
+                        state.is_recording_inputs = false;
+                        rl.stop_automation_event_recording();
+                        if automation_events.export(RECORDING_OUTPUT_PATH) {
+                            // TODO: Really need a way to easily put info messages in the UI
+                            println!("Recording saved to {}", RECORDING_OUTPUT_PATH);
+                        } else {
+                            eprintln!("Couldn't save recording file to {}: Don't have any more info than that I'm afraid :/", RECORDING_OUTPUT_PATH);
+                        }
+                    } else {
+                        state.is_recording_inputs = true;
+                        // IDK What the base frame is referring to here. How many frames until recording
+                        // starts maybe?
+                        rl.set_automation_event_base_frame(180);
+                        rl.start_automation_event_recording();
+                    }
+                }
             }
         }
     }

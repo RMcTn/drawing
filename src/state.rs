@@ -58,6 +58,8 @@ pub struct State {
     pub text_size: TextSize,
     #[serde(default)]
     pub text_color: TextColor,
+    #[serde(skip)]
+    pub is_recording_inputs: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

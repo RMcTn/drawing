@@ -44,7 +44,6 @@ fn main() {
 
     let mut automation_events = rl.load_automation_event_list(None);
     rl.set_automation_event_list(&mut automation_events);
-    let mut is_automation_recording = false;
 
     let color_picker_scaling_factor = 4; // TODO: Make other GUI things scalable.
                                          // TODO: Configurable scaling
@@ -98,6 +97,7 @@ fn main() {
         mouse_pos: rvec2(0, 0),
         text_size: TextSize(50),
         text_color: Default::default(),
+        is_recording_inputs: false,
     };
 
     let mut is_drawing = false;
@@ -133,24 +133,7 @@ fn main() {
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
 
-        if rl.is_key_pressed(KeyboardKey::KEY_H) {
-            if is_automation_recording {
-                is_automation_recording = false;
-                rl.stop_automation_event_recording();
-                if automation_events.export(RECORDING_OUTPUT_PATH) {
-                    // TODO: Really need a way to easily put info messages in the UI
-                    println!("Recording saved to {}", RECORDING_OUTPUT_PATH);
-                } else {
-                    eprintln!("Couldn't save recording file to {}: Don't have any more info than that I'm afraid :/", RECORDING_OUTPUT_PATH);
-                }
-            } else {
-                is_automation_recording = true;
-                // IDK What the base frame is referring to here. How many frames until recording
-                // starts maybe?
-                rl.set_automation_event_base_frame(180);
-                rl.start_automation_event_recording();
-            }
-        }
+        if rl.is_key_pressed(KeyboardKey::KEY_H) {}
 
         time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
 
@@ -344,6 +327,7 @@ fn main() {
                 &mut brush,
                 &mut state,
                 &mut processed_press_commands,
+                &mut automation_events,
             );
             process_key_down_events(
                 &keymap,
@@ -695,6 +679,7 @@ enum PressCommand {
     PickBackgroundColor,
     ToggleKeymapWindow,
     UseColorPicker,
+    ToggleRecording,
 }
 
 type KeyboardKeyCombo = Vec<KeyboardKey>;
@@ -742,6 +727,7 @@ fn default_keymap() -> Keymap {
             PressCommand::ToggleKeymapWindow,
         ),
         (vec![KeyboardKey::KEY_C], PressCommand::UseColorPicker),
+        (vec![KeyboardKey::KEY_V], PressCommand::ToggleRecording),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
