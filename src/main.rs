@@ -98,6 +98,7 @@ fn main() {
         text_size: TextSize(50),
         text_color: Default::default(),
         is_recording_inputs: false,
+        is_playing_inputs: false,
     };
 
     let mut is_drawing = false;
@@ -680,6 +681,7 @@ enum PressCommand {
     ToggleKeymapWindow,
     UseColorPicker,
     ToggleRecording,
+    LoadAndPlayRecordedInputs,
 }
 
 type KeyboardKeyCombo = Vec<KeyboardKey>;
@@ -728,6 +730,10 @@ fn default_keymap() -> Keymap {
         ),
         (vec![KeyboardKey::KEY_C], PressCommand::UseColorPicker),
         (vec![KeyboardKey::KEY_V], PressCommand::ToggleRecording),
+        (
+            vec![KeyboardKey::KEY_APOSTROPHE],
+            PressCommand::LoadAndPlayRecordedInputs,
+        ),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),

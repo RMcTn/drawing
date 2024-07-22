@@ -189,6 +189,31 @@ pub fn process_key_pressed_events(
                         rl.start_automation_event_recording();
                     }
                 }
+                LoadAndPlayRecordedInputs => {
+                    if state.is_recording_inputs {
+                        println!("Not loading inputs as we're currently recording");
+                    } else {
+                        let loaded_automated_events =
+                            rl.load_automation_event_list(Some(RECORDING_OUTPUT_PATH.into()));
+                        if loaded_automated_events.count() == 0 {
+                            // Load unsuccessful
+                            // TODO: Show failure on UI
+                            eprintln!(
+                                "Couldn't load automated event list from {}, or it was empty",
+                                RECORDING_OUTPUT_PATH
+                            );
+                        } else {
+                            // TODO: Does this leak memory?
+                            *automation_events = loaded_automated_events;
+                            // TODO: Show success on UI
+                            println!(
+                                "Successfully loaded automated event list from {}",
+                                RECORDING_OUTPUT_PATH
+                            );
+                            state.is_playing_inputs = true;
+                        }
+                    }
+                }
             }
         }
     }

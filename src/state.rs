@@ -60,6 +60,8 @@ pub struct State {
     pub text_color: TextColor,
     #[serde(skip)]
     pub is_recording_inputs: bool,
+    #[serde(skip)]
+    pub is_playing_inputs: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
