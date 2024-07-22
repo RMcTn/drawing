@@ -25,6 +25,8 @@ mod persistence;
 mod render;
 mod state;
 
+const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
+
 fn main() {
     let keymap = default_keymap();
     let mut debugging = false;
@@ -39,6 +41,10 @@ fn main() {
         .resizable()
         .title("Window")
         .build();
+
+    let mut automation_events = rl.load_automation_event_list(None);
+    rl.set_automation_event_list(&mut automation_events);
+    let mut is_automation_recording = false;
 
     let color_picker_scaling_factor = 4; // TODO: Make other GUI things scalable.
                                          // TODO: Configurable scaling
@@ -127,6 +133,25 @@ fn main() {
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
 
+        if rl.is_key_pressed(KeyboardKey::KEY_H) {
+            if is_automation_recording {
+                is_automation_recording = false;
+                rl.stop_automation_event_recording();
+                if automation_events.export(RECORDING_OUTPUT_PATH) {
+                    // TODO: Really need a way to easily put info messages in the UI
+                    println!("Recording saved to {}", RECORDING_OUTPUT_PATH);
+                } else {
+                    eprintln!("Couldn't save recording file to {}: Don't have any more info than that I'm afraid :/", RECORDING_OUTPUT_PATH);
+                }
+            } else {
+                is_automation_recording = true;
+                // IDK What the base frame is referring to here. How many frames until recording
+                // starts maybe?
+                rl.set_automation_event_base_frame(180);
+                rl.start_automation_event_recording();
+            }
+        }
+
         time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
 
         let start_time = Instant::now();
@@ -151,9 +176,10 @@ fn main() {
 
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
-        let pixel_color_at_mouse_pos =
-            // Give a little wiggle room when moving off the edges of the window, stops a crash :)
-            rl.load_image_from_screen(&rl_thread).get_color(state.mouse_pos.x as i32, state.mouse_pos.y as i32);
+        // TODO: Some bounds check
+        let pixel_color_at_mouse_pos = rl
+            .load_image_from_screen(&rl_thread)
+            .get_color(state.mouse_pos.x as i32, state.mouse_pos.y as i32);
 
         // color picker activate check
         if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
