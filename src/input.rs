@@ -1,7 +1,8 @@
+use core::panic;
 use std::cmp;
 use std::collections::HashMap;
 
-use raylib::automation::AutomationEventList;
+use raylib::automation::{AutomationEvent, AutomationEventList};
 use raylib::color::Color;
 use raylib::math::rrect;
 use raylib::RaylibHandle;
@@ -87,7 +88,8 @@ pub fn process_key_pressed_events(
     brush: &mut Brush,
     mut state: &mut State,
     processed_commands: &mut HashMap<PressCommand, bool>,
-    automation_events: &mut AutomationEventList,
+    automation_event_list: &mut AutomationEventList,
+    automation_events: &mut Vec<AutomationEvent>,
 ) {
     for (keys, command) in keymap.on_press.iter() {
         let mut all_keys_pressed = true;
@@ -172,21 +174,24 @@ pub fn process_key_pressed_events(
                     _ => state.mode = Mode::ShowingKeymapPanel,
                 },
                 ToggleRecording => {
-                    if state.is_recording_inputs {
-                        state.is_recording_inputs = false;
-                        rl.stop_automation_event_recording();
-                        if automation_events.export(RECORDING_OUTPUT_PATH) {
-                            // TODO: Really need a way to easily put info messages in the UI
-                            println!("Recording saved to {}", RECORDING_OUTPUT_PATH);
-                        } else {
-                            eprintln!("Couldn't save recording file to {}: Don't have any more info than that I'm afraid :/", RECORDING_OUTPUT_PATH);
-                        }
+                    if state.is_playing_inputs {
+                        // Don't want to start recording because we replayed the toggle recording
+                        // input :)
                     } else {
-                        state.is_recording_inputs = true;
-                        // IDK What the base frame is referring to here. How many frames until recording
-                        // starts maybe?
-                        rl.set_automation_event_base_frame(180);
-                        rl.start_automation_event_recording();
+                        if state.is_recording_inputs {
+                            rl.stop_automation_event_recording();
+                            state.is_recording_inputs = false;
+                            if automation_event_list.export(RECORDING_OUTPUT_PATH) {
+                                // TODO: Really need a way to easily put info messages in the UI
+                                println!("Recording saved to {}", RECORDING_OUTPUT_PATH);
+                            } else {
+                                eprintln!("Couldn't save recording file to {}: Don't have any more info than that I'm afraid :/", RECORDING_OUTPUT_PATH);
+                            }
+                        } else {
+                            state.is_recording_inputs = true;
+                            rl.set_automation_event_base_frame(0);
+                            rl.start_automation_event_recording();
+                        }
                     }
                 }
                 LoadAndPlayRecordedInputs => {
@@ -204,13 +209,21 @@ pub fn process_key_pressed_events(
                             );
                         } else {
                             // TODO: Does this leak memory?
-                            *automation_events = loaded_automated_events;
+                            *automation_event_list = loaded_automated_events;
+                            rl.set_automation_event_list(automation_event_list);
+                            rl.set_automation_event_base_frame(0);
+                            let v = automation_event_list.events();
+                            *automation_events = v;
+
                             // TODO: Show success on UI
                             println!(
                                 "Successfully loaded automated event list from {}",
                                 RECORDING_OUTPUT_PATH
                             );
                             state.is_playing_inputs = true;
+                            // TODO: Reset camera state etc
+                            state.current_play_frame = 0;
+                            state.play_frame_counter = 0;
                         }
                     }
                 }

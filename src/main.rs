@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cmp,
     collections::HashMap,
     fmt::Display,
@@ -10,6 +11,7 @@ use gui::{
     debug_draw_center_crosshair, draw_color_dropper_icon, draw_color_dropper_preview, draw_info_ui,
     draw_keymap, is_clicking_gui,
 };
+use log::debug;
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
@@ -28,6 +30,7 @@ mod state;
 const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
 
 fn main() {
+    env_logger::init();
     let keymap = default_keymap();
     let mut debugging = false;
 
@@ -42,8 +45,9 @@ fn main() {
         .title("Window")
         .build();
 
-    let mut automation_events = rl.load_automation_event_list(None);
-    rl.set_automation_event_list(&mut automation_events);
+    let mut automation_events_list = rl.load_automation_event_list(None);
+    rl.set_automation_event_list(&mut automation_events_list);
+    let mut automation_events = automation_events_list.events();
 
     let color_picker_scaling_factor = 4; // TODO: Make other GUI things scalable.
                                          // TODO: Configurable scaling
@@ -99,6 +103,8 @@ fn main() {
         text_color: Default::default(),
         is_recording_inputs: false,
         is_playing_inputs: false,
+        current_play_frame: 0,
+        play_frame_counter: 0,
     };
 
     let mut is_drawing = false;
@@ -133,8 +139,6 @@ fn main() {
         // TODO(reece): Installable so it's searchable as a program
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
-
-        if rl.is_key_pressed(KeyboardKey::KEY_H) {}
 
         time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
 
@@ -222,6 +226,7 @@ fn main() {
                         }
                     }
                     if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT) {
+                        dbg!("Left mouse release");
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
                         // the brush stroke unless we change back to brush mode
@@ -328,6 +333,7 @@ fn main() {
                 &mut brush,
                 &mut state,
                 &mut processed_press_commands,
+                &mut automation_events_list,
                 &mut automation_events,
             );
             process_key_down_events(
@@ -375,6 +381,33 @@ fn main() {
             screen_width as f32 / state.camera.zoom,
             screen_height as f32 / state.camera.zoom,
         );
+
+        if state.is_playing_inputs {
+            // NOTE: Multiple events could be executed in a single frame
+            while state.play_frame_counter
+                == automation_events[state.current_play_frame].frame() as usize
+            {
+                let event = &automation_events[state.current_play_frame];
+                debug!(
+                    "Event {:?}: type {:?}",
+                    state.current_play_frame,
+                    event.get_type()
+                );
+
+                event.play();
+                state.current_play_frame += 1;
+
+                if state.current_play_frame == automation_events.len() {
+                    state.is_playing_inputs = false;
+                    state.current_play_frame = 0;
+                    state.play_frame_counter = 0;
+
+                    println!("Finished playing automation events");
+                    break;
+                }
+            }
+            state.play_frame_counter += 1;
+        }
 
         let mut drawing = rl.begin_drawing(&rl_thread);
         {

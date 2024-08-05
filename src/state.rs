@@ -62,6 +62,11 @@ pub struct State {
     pub is_recording_inputs: bool,
     #[serde(skip)]
     pub is_playing_inputs: bool,
+    // Not sure if frame related things belong here...
+    #[serde(skip)]
+    pub current_play_frame: usize,
+    #[serde(skip)]
+    pub play_frame_counter: usize,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
