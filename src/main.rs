@@ -126,6 +126,9 @@ fn main() {
         .iter()
         .map(|entry| (entry.1, false))
         .collect();
+
+    let mut mouse_left_pressed_last_frame = false;
+    let mut mouse_left_pressed_this_frame = false;
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
         let current_fps = rl.get_fps();
@@ -210,6 +213,7 @@ fn main() {
                                     state.strokes_within_point(drawing_pos, brush.brush_size);
                                 state.delete_strokes(strokes_to_delete);
                             } else {
+                                mouse_left_pressed_this_frame = true;
                                 // Drawing
                                 if !is_drawing {
                                     working_stroke =
@@ -225,7 +229,11 @@ fn main() {
                             }
                         }
                     }
-                    if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT) {
+                    dbg!(mouse_left_pressed_last_frame);
+                    let v = !rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT);
+                    dbg!(v);
+                    if v && mouse_left_pressed_last_frame {
+                        // if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT) {
                         dbg!("Left mouse release");
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
@@ -409,146 +417,152 @@ fn main() {
             state.play_frame_counter += 1;
         }
 
-        let mut drawing = rl.begin_drawing(&rl_thread);
         {
-            let mut drawing_camera = drawing.begin_mode2D(state.camera);
+            let mut drawing = rl.begin_drawing(&rl_thread);
+            {
+                let mut drawing_camera = drawing.begin_mode2D(state.camera);
 
-            drawing_camera.clear_background(state.background_color.0);
-            for (_, stroke) in &state.strokes {
-                if is_stroke_in_camera_view(&camera_view_boundary, stroke) {
-                    draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
-                }
-            }
-            for (_, text) in &state.text {
-                if let Some(pos) = text.position {
-                    if camera_view_boundary.check_collision_point_rec(pos) {
-                        drawing_camera.draw_text(
-                            &text.content,
-                            pos.x as i32,
-                            pos.y as i32,
-                            text.size.0 as i32,
-                            text.color.0,
-                        );
+                drawing_camera.clear_background(state.background_color.0);
+                for (_, stroke) in &state.strokes {
+                    if is_stroke_in_camera_view(&camera_view_boundary, stroke) {
+                        draw_stroke(&mut drawing_camera, &stroke, stroke.brush_size);
                     }
                 }
-            }
+                for (_, text) in &state.text {
+                    if let Some(pos) = text.position {
+                        if camera_view_boundary.check_collision_point_rec(pos) {
+                            drawing_camera.draw_text(
+                                &text.content,
+                                pos.x as i32,
+                                pos.y as i32,
+                                text.size.0 as i32,
+                                text.color.0,
+                            );
+                        }
+                    }
+                }
 
-            // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
-            draw_stroke(
-                &mut drawing_camera,
-                &working_stroke,
-                working_stroke.brush_size,
-            );
-
-            // Draw "world space" GUI elements for the current mode
-            if should_show_brush_marker(state.mode) {
-                draw_brush_marker(&mut drawing_camera, drawing_pos, &brush);
-            }
-
-            if state.mode == Mode::UsingTool(Tool::Text) {
-                drawing_camera.draw_text(
-                    "Your text here",
-                    drawing_pos.x as i32,
-                    drawing_pos.y as i32,
-                    state.text_size.0 as i32,
-                    state.text_color.0,
+                // TODO(reece): Do we want to treat the working_stroke as a special case to draw?
+                draw_stroke(
+                    &mut drawing_camera,
+                    &working_stroke,
+                    working_stroke.brush_size,
                 );
-            }
 
-            if let Some(working_text) = &working_text {
-                if let Some(pos) = working_text.position {
+                // Draw "world space" GUI elements for the current mode
+                if should_show_brush_marker(state.mode) {
+                    draw_brush_marker(&mut drawing_camera, drawing_pos, &brush);
+                }
+
+                if state.mode == Mode::UsingTool(Tool::Text) {
                     drawing_camera.draw_text(
-                        &working_text.content,
-                        pos.x as i32,
-                        pos.y as i32,
+                        "Your text here",
+                        drawing_pos.x as i32,
+                        drawing_pos.y as i32,
                         state.text_size.0 as i32,
                         state.text_color.0,
                     );
                 }
-            }
 
-            if debugging {
-                debug_draw_center_crosshair(
-                    &mut drawing_camera,
-                    &state,
-                    screen_width,
-                    screen_height,
-                );
-            }
-        }
-
-        // Draw non "world space" GUI elements for the current mode
-        match state.mode {
-            Mode::UsingTool(Tool::ColorPicker) => {
-                draw_color_dropper_preview(
-                    &mut drawing,
-                    state.mouse_pos,
-                    screen_height,
-                    outline_color,
-                    pixel_color_at_mouse_pos,
-                );
-
-                draw_color_dropper_icon(
-                    &mut drawing,
-                    state.mouse_pos,
-                    color_dropper_scaled_width,
-                    color_dropper_scaled_height,
-                    &color_dropper_icon,
-                    color_dropper_source_rect,
-                );
-            }
-            Mode::PickingBackgroundColor(_) => {}
-            Mode::TypingText => {}
-            Mode::ShowingKeymapPanel => {}
-            Mode::UsingTool(_) => {}
-        }
-
-        if let Mode::PickingBackgroundColor(color_picker) = state.mode {
-            state.background_color.0 =
-                drawing.gui_color_picker(color_picker.bounds, None, state.background_color.0);
-        }
-
-        if let Some(picker_info) = &mut color_picker_info {
-            if state.using_text_tool_or_typing() {
-                state.text_color.0 =
-                    drawing.gui_color_picker(picker_info.bounds, None, state.text_color.0);
-                if let Some(ref mut text) = working_text {
-                    text.color = state.text_color;
+                if let Some(working_text) = &working_text {
+                    if let Some(pos) = working_text.position {
+                        drawing_camera.draw_text(
+                            &working_text.content,
+                            pos.x as i32,
+                            pos.y as i32,
+                            state.text_size.0 as i32,
+                            state.text_color.0,
+                        );
+                    }
                 }
-            }
 
-            if state.mode == Mode::UsingTool(Tool::Brush) {
-                if !is_drawing {
-                    // Hide when not drawing
-                    state.foreground_color.0 = drawing.gui_color_picker(
-                        picker_info.bounds,
-                        None,
-                        state.foreground_color.0,
+                if debugging {
+                    debug_draw_center_crosshair(
+                        &mut drawing_camera,
+                        &state,
+                        screen_width,
+                        screen_height,
                     );
                 }
             }
-            // TODO: Scale the GUI?
-            if debugging {
-                drawing.draw_rectangle_lines_ex(picker_info.bounds_with_slider(), 1.0, Color::GOLD);
+
+            // Draw non "world space" GUI elements for the current mode
+            match state.mode {
+                Mode::UsingTool(Tool::ColorPicker) => {
+                    draw_color_dropper_preview(
+                        &mut drawing,
+                        state.mouse_pos,
+                        screen_height,
+                        outline_color,
+                        pixel_color_at_mouse_pos,
+                    );
+
+                    draw_color_dropper_icon(
+                        &mut drawing,
+                        state.mouse_pos,
+                        color_dropper_scaled_width,
+                        color_dropper_scaled_height,
+                        &color_dropper_icon,
+                        color_dropper_source_rect,
+                    );
+                }
+                Mode::PickingBackgroundColor(_) => {}
+                Mode::TypingText => {}
+                Mode::ShowingKeymapPanel => {}
+                Mode::UsingTool(_) => {}
             }
-        }
 
-        if state.mode == Mode::ShowingKeymapPanel {
-            let letter_spacing = 4.0;
-            draw_keymap(
-                &mut drawing,
-                &keymap,
-                keymap_panel_bounds,
-                &font,
-                ui_font_size,
-                letter_spacing,
-            );
-        }
+            if let Mode::PickingBackgroundColor(color_picker) = state.mode {
+                state.background_color.0 =
+                    drawing.gui_color_picker(color_picker.bounds, None, state.background_color.0);
+            }
 
-        draw_info_ui(&mut drawing, &state, &brush);
+            if let Some(picker_info) = &mut color_picker_info {
+                if state.using_text_tool_or_typing() {
+                    state.text_color.0 =
+                        drawing.gui_color_picker(picker_info.bounds, None, state.text_color.0);
+                    if let Some(ref mut text) = working_text {
+                        text.color = state.text_color;
+                    }
+                }
 
-        if debugging {
-            debug_draw_info(&mut drawing, &state, drawing_pos, current_fps);
+                if state.mode == Mode::UsingTool(Tool::Brush) {
+                    if !is_drawing {
+                        // Hide when not drawing
+                        state.foreground_color.0 = drawing.gui_color_picker(
+                            picker_info.bounds,
+                            None,
+                            state.foreground_color.0,
+                        );
+                    }
+                }
+                // TODO: Scale the GUI?
+                if debugging {
+                    drawing.draw_rectangle_lines_ex(
+                        picker_info.bounds_with_slider(),
+                        1.0,
+                        Color::GOLD,
+                    );
+                }
+            }
+
+            if state.mode == Mode::ShowingKeymapPanel {
+                let letter_spacing = 4.0;
+                draw_keymap(
+                    &mut drawing,
+                    &keymap,
+                    keymap_panel_bounds,
+                    &font,
+                    ui_font_size,
+                    letter_spacing,
+                );
+            }
+
+            draw_info_ui(&mut drawing, &state, &brush);
+
+            if debugging {
+                debug_draw_info(&mut drawing, &state, drawing_pos, current_fps);
+            }
         }
 
         let elapsed = start_time.elapsed();
@@ -556,6 +570,7 @@ fn main() {
             let time_to_sleep = duration_per_frame - elapsed;
             thread::sleep(time_to_sleep);
         }
+        mouse_left_pressed_last_frame = mouse_left_pressed_this_frame;
     }
 }
 
