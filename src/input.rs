@@ -296,3 +296,18 @@ pub fn was_mouse_button_released(
                                                                     // populated with needed mouse
                                                                     // keys
 }
+
+pub fn is_mouse_button_down(
+    rl: &mut RaylibHandle,
+    button: MouseButton,
+    buttons_pressed_this_frame: &mut HashMap<MouseButton, bool>,
+) -> bool {
+    if rl.is_mouse_button_down(button) {
+        buttons_pressed_this_frame
+            .entry(button)
+            .and_modify(|b| *b = true);
+        return true;
+    } else {
+        return false;
+    }
+}

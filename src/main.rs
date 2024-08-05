@@ -17,8 +17,8 @@ use slotmap::{new_key_type, DefaultKey, SlotMap};
 
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{
-    get_char_pressed, is_mouse_button_pressed, process_key_down_events, process_key_pressed_events,
-    was_mouse_button_released,
+    get_char_pressed, is_mouse_button_down, is_mouse_button_pressed, process_key_down_events,
+    process_key_pressed_events, was_mouse_button_released,
 };
 use render::{draw_brush_marker, draw_stroke};
 use state::{ForegroundColor, State, TextColor, TextSize};
@@ -220,16 +220,17 @@ fn main() {
                     // color picker - Maybe a little delay before drawing after clicking off the
                     // picker?
 
-                    if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+                    if is_mouse_button_down(
+                        &mut rl,
+                        MouseButton::MOUSE_BUTTON_LEFT,
+                        &mut mouse_buttons_pressed_this_frame,
+                    ) {
                         if !is_color_picker_active(&color_picker_info) {
                             if brush.brush_type == BrushType::Deleting {
                                 let strokes_to_delete =
                                     state.strokes_within_point(drawing_pos, brush.brush_size);
                                 state.delete_strokes(strokes_to_delete);
                             } else {
-                                mouse_buttons_pressed_this_frame
-                                    .entry(MouseButton::MOUSE_BUTTON_LEFT)
-                                    .and_modify(|v| *v = true);
                                 // Drawing
                                 if !is_drawing {
                                     working_stroke =
