@@ -285,3 +285,11 @@ pub fn is_mouse_button_pressed(
         return false;
     }
 }
+
+pub fn was_left_mouse_button_released(
+    rl: &mut RaylibHandle,
+    mouse_left_pressed_last_frame: bool,
+) -> bool {
+    return !rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
+        && mouse_left_pressed_last_frame;
+}

@@ -19,6 +19,7 @@ use slotmap::{new_key_type, DefaultKey, SlotMap};
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{
     get_char_pressed, is_mouse_button_pressed, process_key_down_events, process_key_pressed_events,
+    was_left_mouse_button_released,
 };
 use render::{draw_brush_marker, draw_stroke};
 use state::{ForegroundColor, State, TextColor, TextSize};
@@ -235,9 +236,7 @@ fn main() {
                             }
                         }
                     }
-                    if !rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
-                        && mouse_left_pressed_last_frame
-                    {
+                    if was_left_mouse_button_released(&mut rl, mouse_left_pressed_last_frame) {
                         dbg!("Left mouse release");
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
