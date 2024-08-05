@@ -1,6 +1,7 @@
 use std::cmp;
 use std::collections::HashMap;
 
+use log::debug;
 use raylib::automation::{AutomationEvent, AutomationEventList};
 use raylib::color::Color;
 use raylib::ffi::MouseButton;

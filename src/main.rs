@@ -207,7 +207,11 @@ fn main() {
         // color picker closer check
         if let Some(picker_info) = &color_picker_info {
             if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider()) {
-                if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+                if is_mouse_button_down(
+                    &mut rl,
+                    MouseButton::MOUSE_BUTTON_LEFT,
+                    &mut mouse_buttons_pressed_this_frame,
+                ) {
                     close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
                 }
             }
@@ -287,7 +291,11 @@ fn main() {
                     }
                 }
                 Tool::ColorPicker => {
-                    if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+                    if is_mouse_button_down(
+                        &mut rl,
+                        MouseButton::MOUSE_BUTTON_LEFT,
+                        &mut mouse_buttons_pressed_this_frame,
+                    ) {
                         // NOTE: This literally is whatever color is at the screen. This includes
                         // GUI elements! If it gets annoying enough, it can be changed, but this
                         // was simpler
@@ -385,7 +393,11 @@ fn main() {
         }
 
         // TODO: Configurable mouse buttons
-        if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_MIDDLE) {
+        if is_mouse_button_down(
+            &mut rl,
+            MouseButton::MOUSE_BUTTON_MIDDLE,
+            &mut mouse_buttons_pressed_this_frame,
+        ) {
             apply_mouse_drag_to_camera(state.mouse_pos, last_mouse_pos, &mut state.camera);
         }
 
