@@ -184,11 +184,12 @@ fn main() {
 
         // color picker activate check
         if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
-            if is_mouse_button_pressed(
+            if is_mouse_button_down(
                 &mut rl,
                 MouseButton::MOUSE_BUTTON_RIGHT,
                 &mut mouse_buttons_pressed_this_frame,
             ) {
+                debug!("Making colour picker active");
                 let picker_width = 100;
                 let picker_height = 100;
                 color_picker_info = Some(GuiColorPickerInfo {
@@ -268,7 +269,7 @@ fn main() {
                     }
                 }
                 Tool::Text => {
-                    if is_mouse_button_pressed(
+                    if is_mouse_button_down(
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
@@ -276,7 +277,7 @@ fn main() {
                         if !is_color_picker_active(&color_picker_info)
                             && !color_picker_closed_this_frame
                         {
-                            dbg!("Hit left click on text tool");
+                            debug!("Hit left click on text tool");
                             // Start text
                             if working_text.is_none() {
                                 working_text = Some(Text {
@@ -327,7 +328,7 @@ fn main() {
                     }
                 }
 
-                if rl.is_key_pressed(KeyboardKey::KEY_ENTER) {
+                if rl.is_key_down(KeyboardKey::KEY_ENTER) {
                     dbg!("Exiting text tool");
                     if let Some(mut text) = working_text {
                         if !text.content.is_empty() {
@@ -343,6 +344,13 @@ fn main() {
                 }
 
                 let char_pressed = get_char_pressed();
+
+                // TODO: FIXME: BUG: Raylib's event automation doesn't track chars pressed (probably due to
+                // platform differences). If we relied on key pressed instead, then:
+                //      - We wouldn't be able to differ between uppercase and lowercase (KEY_A
+                //      doesn't tell you if it's lower or uppercase)
+                //      - We'd need to make our own "repeat key" logic, as holding a key looks like
+                //      it only gets 1 key pressed raylib event fired off (makes sense)
 
                 match char_pressed {
                     Some(ch) => append_input_to_working_text(

@@ -271,12 +271,16 @@ pub fn append_input_to_working_text(
     }
 }
 
+/// Checking for mouse button presses doesn't play well with Raylib automation events.
+/// Consider if is_mouse_button_down works for your use case, and this will play nicer with
+/// Raylib's automation events
 pub fn is_mouse_button_pressed(
     rl: &mut RaylibHandle,
     button: MouseButton,
     mouse_buttons_pressed_this_frame: &mut HashMap<MouseButton, bool>,
 ) -> bool {
     if rl.is_mouse_button_pressed(button) {
+        debug!("{:?} was pressed", button);
         mouse_buttons_pressed_this_frame
             .entry(button)
             .and_modify(|b| *b = true);
