@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use raylib::automation::{AutomationEvent, AutomationEventList};
 use raylib::color::Color;
+use raylib::ffi::MouseButton;
 use raylib::math::rrect;
 use raylib::RaylibHandle;
 
@@ -267,5 +268,20 @@ pub fn append_input_to_working_text(
         // unwrap at the time
         None => (), // TODO: FIXME: Some sort of logging/let the user know for
                     // unrepresentable character?
+    }
+}
+
+pub fn is_mouse_button_pressed(
+    rl: &mut RaylibHandle,
+    button: MouseButton,
+    left_pushed_this_frame: &mut bool,
+) -> bool {
+    if rl.is_mouse_button_pressed(button) {
+        if button == MouseButton::MOUSE_BUTTON_LEFT {
+            *left_pushed_this_frame = true;
+        }
+        return true;
+    } else {
+        return false;
     }
 }

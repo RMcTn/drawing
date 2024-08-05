@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
 
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
-use input::{get_char_pressed, process_key_down_events, process_key_pressed_events};
+use input::{
+    get_char_pressed, is_mouse_button_pressed, process_key_down_events, process_key_pressed_events,
+};
 use render::{draw_brush_marker, draw_stroke};
 use state::{ForegroundColor, State, TextColor, TextSize};
 
@@ -174,7 +176,11 @@ fn main() {
 
         // color picker activate check
         if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
-            if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_RIGHT) {
+            if is_mouse_button_pressed(
+                &mut rl,
+                MouseButton::MOUSE_BUTTON_RIGHT,
+                &mut mouse_left_pressed_this_frame,
+            ) {
                 let picker_width = 100;
                 let picker_height = 100;
                 color_picker_info = Some(GuiColorPickerInfo {
@@ -229,11 +235,9 @@ fn main() {
                             }
                         }
                     }
-                    dbg!(mouse_left_pressed_last_frame);
-                    let v = !rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT);
-                    dbg!(v);
-                    if v && mouse_left_pressed_last_frame {
-                        // if rl.is_mouse_button_released(MouseButton::MOUSE_BUTTON_LEFT) {
+                    if !rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
+                        && mouse_left_pressed_last_frame
+                    {
                         dbg!("Left mouse release");
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
@@ -247,7 +251,11 @@ fn main() {
                     }
                 }
                 Tool::Text => {
-                    if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+                    if is_mouse_button_pressed(
+                        &mut rl,
+                        MouseButton::MOUSE_BUTTON_LEFT,
+                        &mut mouse_left_pressed_this_frame,
+                    ) {
                         if !is_color_picker_active(&color_picker_info)
                             && !color_picker_closed_this_frame
                         {
@@ -278,7 +286,11 @@ fn main() {
                 }
             },
             Mode::PickingBackgroundColor(color_picker) => {
-                if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+                if is_mouse_button_pressed(
+                    &mut rl,
+                    MouseButton::MOUSE_BUTTON_LEFT,
+                    &mut mouse_left_pressed_this_frame,
+                ) {
                     if !is_clicking_gui(state.mouse_pos, color_picker.bounds_with_slider()) {
                         state.mode = Mode::UsingTool(Tool::Brush);
                     }
@@ -322,7 +334,11 @@ fn main() {
                 }
             }
             Mode::ShowingKeymapPanel => {
-                if rl.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT) {
+                if is_mouse_button_pressed(
+                    &mut rl,
+                    MouseButton::MOUSE_BUTTON_LEFT,
+                    &mut mouse_left_pressed_this_frame,
+                ) {
                     if !is_clicking_gui(state.mouse_pos, keymap_panel_bounds) {
                         state.mode = Mode::default();
                     }
@@ -571,6 +587,7 @@ fn main() {
             thread::sleep(time_to_sleep);
         }
         mouse_left_pressed_last_frame = mouse_left_pressed_this_frame;
+        mouse_left_pressed_this_frame = false;
     }
 }
 
