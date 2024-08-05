@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     cmp,
     collections::HashMap,
     fmt::Display,
@@ -19,7 +18,7 @@ use slotmap::{new_key_type, DefaultKey, SlotMap};
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 use input::{
     get_char_pressed, is_mouse_button_pressed, process_key_down_events, process_key_pressed_events,
-    was_left_mouse_button_released,
+    was_mouse_button_released,
 };
 use render::{draw_brush_marker, draw_stroke};
 use state::{ForegroundColor, State, TextColor, TextSize};
@@ -130,8 +129,16 @@ fn main() {
         .map(|entry| (entry.1, false))
         .collect();
 
-    let mut mouse_left_pressed_last_frame = false;
-    let mut mouse_left_pressed_this_frame = false;
+    let mut mouse_buttons_pressed_this_frame = HashMap::from([
+        (MouseButton::MOUSE_BUTTON_LEFT, false),
+        (MouseButton::MOUSE_BUTTON_RIGHT, false),
+        (MouseButton::MOUSE_BUTTON_MIDDLE, false),
+    ]);
+    let mut mouse_buttons_pressed_last_frame = HashMap::from([
+        (MouseButton::MOUSE_BUTTON_LEFT, false),
+        (MouseButton::MOUSE_BUTTON_RIGHT, false),
+        (MouseButton::MOUSE_BUTTON_MIDDLE, false),
+    ]);
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
         let current_fps = rl.get_fps();
@@ -180,7 +187,7 @@ fn main() {
             if is_mouse_button_pressed(
                 &mut rl,
                 MouseButton::MOUSE_BUTTON_RIGHT,
-                &mut mouse_left_pressed_this_frame,
+                &mut mouse_buttons_pressed_this_frame,
             ) {
                 let picker_width = 100;
                 let picker_height = 100;
@@ -220,7 +227,9 @@ fn main() {
                                     state.strokes_within_point(drawing_pos, brush.brush_size);
                                 state.delete_strokes(strokes_to_delete);
                             } else {
-                                mouse_left_pressed_this_frame = true;
+                                mouse_buttons_pressed_this_frame
+                                    .entry(MouseButton::MOUSE_BUTTON_LEFT)
+                                    .and_modify(|v| *v = true);
                                 // Drawing
                                 if !is_drawing {
                                     working_stroke =
@@ -236,7 +245,11 @@ fn main() {
                             }
                         }
                     }
-                    if was_left_mouse_button_released(&mut rl, mouse_left_pressed_last_frame) {
+                    if was_mouse_button_released(
+                        &mut rl,
+                        MouseButton::MOUSE_BUTTON_LEFT,
+                        &mouse_buttons_pressed_last_frame,
+                    ) {
                         dbg!("Left mouse release");
                         // Finished drawing
                         // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
@@ -253,7 +266,7 @@ fn main() {
                     if is_mouse_button_pressed(
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
-                        &mut mouse_left_pressed_this_frame,
+                        &mut mouse_buttons_pressed_this_frame,
                     ) {
                         if !is_color_picker_active(&color_picker_info)
                             && !color_picker_closed_this_frame
@@ -288,7 +301,7 @@ fn main() {
                 if is_mouse_button_pressed(
                     &mut rl,
                     MouseButton::MOUSE_BUTTON_LEFT,
-                    &mut mouse_left_pressed_this_frame,
+                    &mut mouse_buttons_pressed_this_frame,
                 ) {
                     if !is_clicking_gui(state.mouse_pos, color_picker.bounds_with_slider()) {
                         state.mode = Mode::UsingTool(Tool::Brush);
@@ -336,7 +349,7 @@ fn main() {
                 if is_mouse_button_pressed(
                     &mut rl,
                     MouseButton::MOUSE_BUTTON_LEFT,
-                    &mut mouse_left_pressed_this_frame,
+                    &mut mouse_buttons_pressed_this_frame,
                 ) {
                     if !is_clicking_gui(state.mouse_pos, keymap_panel_bounds) {
                         state.mode = Mode::default();
@@ -585,8 +598,13 @@ fn main() {
             let time_to_sleep = duration_per_frame - elapsed;
             thread::sleep(time_to_sleep);
         }
-        mouse_left_pressed_last_frame = mouse_left_pressed_this_frame;
-        mouse_left_pressed_this_frame = false;
+
+        for (button, was_pressed) in mouse_buttons_pressed_last_frame.iter_mut() {
+            *was_pressed = *mouse_buttons_pressed_this_frame.get(button).unwrap();
+        }
+        for (_, was_pressed) in mouse_buttons_pressed_this_frame.iter_mut() {
+            *was_pressed = false;
+        }
     }
 }
 

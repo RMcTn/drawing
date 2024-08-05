@@ -1,4 +1,3 @@
-use core::panic;
 use std::cmp;
 use std::collections::HashMap;
 
@@ -274,22 +273,26 @@ pub fn append_input_to_working_text(
 pub fn is_mouse_button_pressed(
     rl: &mut RaylibHandle,
     button: MouseButton,
-    left_pushed_this_frame: &mut bool,
+    mouse_buttons_pressed_this_frame: &mut HashMap<MouseButton, bool>,
 ) -> bool {
     if rl.is_mouse_button_pressed(button) {
-        if button == MouseButton::MOUSE_BUTTON_LEFT {
-            *left_pushed_this_frame = true;
-        }
+        mouse_buttons_pressed_this_frame
+            .entry(button)
+            .and_modify(|b| *b = true);
         return true;
     } else {
         return false;
     }
 }
 
-pub fn was_left_mouse_button_released(
+pub fn was_mouse_button_released(
     rl: &mut RaylibHandle,
-    mouse_left_pressed_last_frame: bool,
+    button: MouseButton,
+    mouse_buttons_pressed_last_frame: &HashMap<MouseButton, bool>,
 ) -> bool {
     return !rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT)
-        && mouse_left_pressed_last_frame;
+        && *mouse_buttons_pressed_last_frame.get(&button).unwrap(); // Should be a safe unwrap, the
+                                                                    // hashmap should be pre
+                                                                    // populated with needed mouse
+                                                                    // keys
 }
