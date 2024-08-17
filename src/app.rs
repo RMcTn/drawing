@@ -185,10 +185,10 @@ pub fn run(replay_path: Option<PathBuf>) {
 
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
-        // TODO: Some bounds check
-        let pixel_color_at_mouse_pos = rl
-            .load_image_from_screen(&rl_thread)
-            .get_color(state.mouse_pos.x as i32, state.mouse_pos.y as i32);
+        let pixel_color_at_mouse_pos = rl.load_image_from_screen(&rl_thread).get_color(
+            state.mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as i32,
+            state.mouse_pos.y.clamp(0.0, (screen_height - 1) as f32) as i32,
+        );
 
         // color picker activate check
         if state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing() {
