@@ -1,7 +1,8 @@
 use std::cmp;
 use std::collections::HashMap;
+use std::path::Path;
 
-use log::debug;
+use log::{debug, error, info};
 use raylib::automation::{AutomationEvent, AutomationEventList};
 use raylib::color::Color;
 use raylib::ffi::MouseButton;
@@ -13,6 +14,7 @@ use crate::app::{
     RECORDING_OUTPUT_PATH,
 };
 use crate::persistence::{self, save, save_with_file_picker};
+use crate::replay::{load_replay, play_replay};
 use crate::state::{State, TextColor, TextSize};
 
 pub fn process_key_down_events(
@@ -89,7 +91,7 @@ pub fn process_key_pressed_events(
     brush: &mut Brush,
     mut state: &mut State,
     processed_commands: &mut HashMap<PressCommand, bool>,
-    automation_event_list: &mut AutomationEventList,
+    automation_events_list: &mut AutomationEventList,
     automation_events: &mut Vec<AutomationEvent>,
 ) {
     for (keys, command) in keymap.on_press.iter() {
@@ -182,7 +184,7 @@ pub fn process_key_pressed_events(
                         if state.is_recording_inputs {
                             rl.stop_automation_event_recording();
                             state.is_recording_inputs = false;
-                            if automation_event_list.export(RECORDING_OUTPUT_PATH) {
+                            if automation_events_list.export(RECORDING_OUTPUT_PATH) {
                                 // TODO: Really need a way to easily put info messages in the UI
                                 println!("Recording saved to {}", RECORDING_OUTPUT_PATH);
                             } else {
@@ -197,34 +199,17 @@ pub fn process_key_pressed_events(
                 }
                 LoadAndPlayRecordedInputs => {
                     if state.is_recording_inputs {
-                        println!("Not loading inputs as we're currently recording");
+                        info!("Not loading inputs as we're currently recording");
                     } else {
-                        let loaded_automated_events =
-                            rl.load_automation_event_list(Some(RECORDING_OUTPUT_PATH.into()));
-                        if loaded_automated_events.count() == 0 {
-                            // Load unsuccessful
-                            // TODO: Show failure on UI
-                            eprintln!(
-                                "Couldn't load automated event list from {}, or it was empty",
-                                RECORDING_OUTPUT_PATH
-                            );
-                        } else {
-                            // TODO: Does this leak memory?
-                            *automation_event_list = loaded_automated_events;
-                            rl.set_automation_event_list(automation_event_list);
-                            rl.set_automation_event_base_frame(0);
-                            let v = automation_event_list.events();
-                            *automation_events = v;
-
-                            // TODO: Show success on UI
-                            println!(
-                                "Successfully loaded automated event list from {}",
-                                RECORDING_OUTPUT_PATH
-                            );
-                            state.is_playing_inputs = true;
-                            // TODO: Reset camera state etc
-                            state.current_play_frame = 0;
-                            state.play_frame_counter = 0;
+                        let default_recording_path = Path::new(RECORDING_OUTPUT_PATH);
+                        match load_replay(
+                            default_recording_path,
+                            rl,
+                            automation_events_list,
+                            automation_events,
+                        ) {
+                            Some(_) => play_replay(&mut state),
+                            None => error!("Error loading replay"),
                         }
                     }
                 }

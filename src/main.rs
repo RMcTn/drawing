@@ -9,5 +9,5 @@ mod replay;
 mod state;
 
 fn main() {
-    app::run(Some(PathBuf::from("./draw_with_colour_change.rae")));
+    app::run(None);
 }
