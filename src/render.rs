@@ -1,4 +1,4 @@
-use crate::{Brush, Stroke};
+use crate::app::{Brush, Stroke};
 use raylib::color::Color;
 use raylib::drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D};
 use raylib::math::{rvec2, Vector2};

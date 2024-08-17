@@ -8,12 +8,12 @@ use raylib::ffi::MouseButton;
 use raylib::math::rrect;
 use raylib::RaylibHandle;
 
-use crate::persistence::{save, save_with_file_picker};
-use crate::state::{State, TextColor, TextSize};
-use crate::{
-    persistence, Brush, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Tool,
+use crate::app::{
+    Brush, GuiColorPickerInfo, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Tool,
     RECORDING_OUTPUT_PATH,
 };
+use crate::persistence::{self, save, save_with_file_picker};
+use crate::state::{State, TextColor, TextSize};
 
 pub fn process_key_down_events(
     keymap: &Keymap,
@@ -156,7 +156,7 @@ pub fn process_key_pressed_events(
                     let picker_width = 100;
                     let picker_height = 100;
 
-                    state.mode = Mode::PickingBackgroundColor(crate::GuiColorPickerInfo {
+                    state.mode = Mode::PickingBackgroundColor(GuiColorPickerInfo {
                         initiation_pos: state.mouse_pos,
                         bounds: rrect(
                             state.mouse_pos.x - (picker_width as f32 / 2.0),

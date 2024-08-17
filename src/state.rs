@@ -6,7 +6,7 @@ use raylib::{camera::Camera2D, color::Color};
 use serde::{Deserialize, Serialize};
 use slotmap::{DefaultKey, SlotMap};
 
-use crate::{Action, Mode, Stroke, Strokes, Text, TextKey};
+use crate::app::{Action, Mode, Stroke, Strokes, Text, TextKey, Tool};
 
 #[derive(Deserialize, Serialize)]
 pub struct BackgroundColor(pub Color);
@@ -252,7 +252,7 @@ impl State {
     }
 
     pub fn using_text_tool_or_typing(&self) -> bool {
-        return self.mode == Mode::UsingTool(crate::Tool::Text) || self.mode == Mode::TypingText;
+        return self.mode == Mode::UsingTool(Tool::Text) || self.mode == Mode::TypingText;
     }
 }
 
@@ -271,8 +271,8 @@ mod tests {
     use raylib::prelude::Color;
 
     use crate::{
+        app::{Stroke, Text},
         state::{TextColor, TextSize},
-        Text,
     };
 
     use super::State;
@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn it_undoes_and_redoes_strokes() {
         let mut state = State::default();
-        let stroke = crate::Stroke {
+        let stroke = Stroke {
             points: vec![],
             color: Color::BLACK,
             brush_size: 10.0,

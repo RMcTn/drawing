@@ -8,7 +8,10 @@ use raylib::{
     texture::Texture2D,
 };
 
-use crate::{state::State, Brush, BrushType, Keymap, Mode, Tool};
+use crate::{
+    app::{Brush, BrushType, Keymap, Mode, Tool},
+    state::State,
+};
 
 pub fn is_clicking_gui(mouse_pos: Vector2, bounds: Rectangle) -> bool {
     return bounds.check_collision_point_rec(mouse_pos);
@@ -101,7 +104,6 @@ pub fn draw_keymap(
     let mut last_y_pos = key_hold_bounds.y;
     // TODO: Pretty print
     // TODO: Scrolling
-    // TODO: REGRESSION: Word wrap
     for (key, command) in &keymap.on_hold {
         let str = format!("{:?} - {:?}", key, command);
         let text_measurements = font.measure_text(&str, font_size, letter_spacing);
