@@ -1,19 +1,21 @@
-use std::{
-    cmp,
-    collections::HashMap,
-    fmt::Display,
-    thread,
-    time::{self, Duration, Instant},
-};
-
 use crate::gui::{
     debug_draw_center_crosshair, draw_color_dropper_icon, draw_color_dropper_preview, draw_info_ui,
     draw_keymap, is_clicking_gui,
 };
-use log::debug;
+use crate::replay::{load_replay, play_replay};
+use log::{debug, error, info};
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
+use std::fs::File;
+use std::{
+    cmp,
+    collections::HashMap,
+    fmt::Display,
+    path::{Path, PathBuf},
+    thread,
+    time::{self, Duration, Instant},
+};
 
 use crate::input::{
     get_char_pressed, is_mouse_button_down, is_mouse_button_pressed, process_key_down_events,
@@ -25,7 +27,7 @@ use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 
 pub const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
 
-pub fn run() {
+pub fn run(replay_path: Option<PathBuf>) {
     env_logger::init();
     let keymap = default_keymap();
     let mut debugging = false;
@@ -102,6 +104,19 @@ pub fn run() {
         current_play_frame: 0,
         play_frame_counter: 0,
     };
+
+    if let Some(replay_path) = replay_path {
+        if let Some(()) = load_replay(
+            &replay_path,
+            &rl,
+            &mut automation_events_list,
+            &mut automation_events,
+        ) {
+            play_replay(&mut state);
+        } else {
+            error!("Could not load replay")
+        }
+    }
 
     let mut is_drawing = false;
     let mut working_stroke = Stroke::new(ForegroundColor::default().0, brush.brush_size);
