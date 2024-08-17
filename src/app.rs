@@ -28,7 +28,6 @@ use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 pub const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
 
 pub fn run(replay_path: Option<PathBuf>) {
-    env_logger::init();
     let keymap = default_keymap();
     let mut debugging = false;
 
