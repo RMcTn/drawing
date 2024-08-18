@@ -47,3 +47,9 @@ pub fn play_replay(state: &mut State) {
     state.current_play_frame = 0;
     state.play_frame_counter = 0;
 }
+
+pub fn stop_replay(state: &mut State) {
+    state.is_playing_inputs = false;
+    state.current_play_frame = 0;
+    state.play_frame_counter = 0;
+}

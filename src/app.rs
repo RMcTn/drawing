@@ -2,17 +2,17 @@ use crate::gui::{
     debug_draw_center_crosshair, draw_color_dropper_icon, draw_color_dropper_preview, draw_info_ui,
     draw_keymap, is_clicking_gui,
 };
-use crate::replay::{load_replay, play_replay};
+use crate::persistence::save;
+use crate::replay::{load_replay, play_replay, stop_replay};
 use log::{debug, error, info};
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, DefaultKey, SlotMap};
-use std::fs::File;
 use std::{
     cmp,
     collections::HashMap,
     fmt::Display,
-    path::{Path, PathBuf},
+    path::PathBuf,
     thread,
     time::{self, Duration, Instant},
 };
@@ -27,7 +27,12 @@ use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 
 pub const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
 
-pub fn run(replay_path: Option<PathBuf>) {
+pub struct TestSettings {
+    pub save_after_replay_finishes: bool,
+    pub save_path: PathBuf,
+}
+
+pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     let keymap = default_keymap();
     let mut debugging = false;
 
@@ -463,11 +468,25 @@ pub fn run(replay_path: Option<PathBuf>) {
                 state.current_play_frame += 1;
 
                 if state.current_play_frame == automation_events.len() {
-                    state.is_playing_inputs = false;
-                    state.current_play_frame = 0;
-                    state.play_frame_counter = 0;
+                    stop_replay(&mut state);
 
-                    println!("Finished playing automation events");
+                    info!("Finished playing replay");
+                    if let Some(ref test_options) = test_options {
+                        if test_options.save_after_replay_finishes {
+                            info!("Attempting to save since replay has finished");
+                            match save(&state, &test_options.save_path) {
+                                Ok(_) => info!(
+                                    "Successfully saved to {}",
+                                    test_options.save_path.display()
+                                ),
+                                Err(e) => error!(
+                                    "Failed to save to {}: {}",
+                                    test_options.save_path.display(),
+                                    e
+                                ),
+                            }
+                        }
+                    }
                     break;
                 }
             }

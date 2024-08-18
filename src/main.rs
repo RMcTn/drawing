@@ -16,7 +16,7 @@ fn main() {
 
     if args.len() == 1 {
         info!("No arguments found. Running without replay");
-        app::run(None);
+        app::run(None, None);
         return;
     }
 
@@ -25,6 +25,6 @@ fn main() {
         info!("Empty replay path given. Running without replay");
     } else {
         info!("Running with replay path {}", replay_path);
-        app::run(Some(PathBuf::from(replay_path)));
+        app::run(Some(PathBuf::from(replay_path)), None);
     }
 }
