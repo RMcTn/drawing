@@ -1,6 +1,7 @@
 use std::{env, path::PathBuf};
 
-use log::info;
+use app::TestSettings;
+use clap::{Parser, Subcommand};
 
 mod app;
 mod gui;
@@ -10,21 +11,47 @@ mod render;
 mod replay;
 mod state;
 
+#[derive(Parser)]
+struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Test {
+        #[arg(long, required = true)]
+        save_after_replay: bool,
+        #[arg(long)]
+        save_path: PathBuf,
+        #[arg(long)]
+        replay_path: PathBuf,
+    },
+    Run {
+        #[arg(long)]
+        replay_path: Option<PathBuf>,
+    },
+}
+
 fn main() {
     env_logger::init();
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    if args.len() == 1 {
-        info!("No arguments found. Running without replay");
-        app::run(None, None);
-        return;
-    }
-
-    let replay_path = &args[1];
-    if replay_path.is_empty() {
-        info!("Empty replay path given. Running without replay");
-    } else {
-        info!("Running with replay path {}", replay_path);
-        app::run(Some(PathBuf::from(replay_path)), None);
+    match args.command {
+        Some(command) => match command {
+            Commands::Test {
+                save_after_replay,
+                save_path,
+                replay_path,
+            } => app::run(
+                Some(replay_path),
+                Some(TestSettings {
+                    save_after_replay,
+                    save_path,
+                }),
+            ),
+            Commands::Run { replay_path } => app::run(replay_path, None),
+        },
+        None => app::run(None, None),
     }
 }

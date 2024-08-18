@@ -27,8 +27,9 @@ use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 
 pub const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
 
+#[derive(Debug)]
 pub struct TestSettings {
-    pub save_after_replay_finishes: bool,
+    pub save_after_replay: bool,
     pub save_path: PathBuf,
 }
 
@@ -472,7 +473,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
 
                     info!("Finished playing replay");
                     if let Some(ref test_options) = test_options {
-                        if test_options.save_after_replay_finishes {
+                        if test_options.save_after_replay {
                             info!("Attempting to save since replay has finished");
                             match save(&state, &test_options.save_path) {
                                 Ok(_) => info!(
@@ -485,6 +486,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                                     e
                                 ),
                             }
+                        } else {
+                            info!("Not saving - Save after replay finishes has been disabled");
                         }
                     }
                     break;
