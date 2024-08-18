@@ -31,6 +31,7 @@ pub const RECORDING_OUTPUT_PATH: &'static str = "recording.rae";
 pub struct TestSettings {
     pub save_after_replay: bool,
     pub save_path: PathBuf,
+    pub quit_after_replay: bool,
 }
 
 pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
@@ -488,6 +489,11 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                             }
                         } else {
                             info!("Not saving - Save after replay finishes has been disabled");
+                        }
+
+                        if test_options.quit_after_replay {
+                            info!("Quitting - Quit after replay is enabled");
+                            return;
                         }
                     }
                     break;

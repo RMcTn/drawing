@@ -22,6 +22,8 @@ enum Commands {
     Test {
         #[arg(long, required = true)]
         save_after_replay: bool,
+        #[arg(long, required = true)]
+        quit_after_replay: bool,
         #[arg(long)]
         save_path: PathBuf,
         #[arg(long)]
@@ -43,11 +45,13 @@ fn main() {
                 save_after_replay,
                 save_path,
                 replay_path,
+                quit_after_replay,
             } => app::run(
                 Some(replay_path),
                 Some(TestSettings {
                     save_after_replay,
                     save_path,
+                    quit_after_replay,
                 }),
             ),
             Commands::Run { replay_path } => app::run(replay_path, None),
