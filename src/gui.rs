@@ -24,17 +24,28 @@ pub fn draw_info_ui(drawing: &mut RaylibDrawHandle, state: &State, brush: &Brush
     let brush_size_str = format!("Brush size: {}", brush.brush_size);
     let text_size_str = format!("Text size: {}", state.text_size.0);
     let zoom_str = format!("Zoom: {:.2}", state.camera.zoom);
+    // TODO: Would be nice to have the gui coord calculations done automatically
+    let mut text_pos_y = 5;
+    drawing.draw_text(brush_type_str, 5, text_pos_y, 30, Color::RED);
+    text_pos_y += 25;
     if state.mode == Mode::UsingTool(Tool::Brush) {
-        drawing.draw_text(&brush_size_str, 5, 30, 30, Color::RED);
+        drawing.draw_text(&brush_size_str, 5, text_pos_y, 30, Color::RED);
     }
     if state.mode == Mode::UsingTool(Tool::Text) || state.mode == Mode::TypingText {
-        drawing.draw_text(&text_size_str, 5, 30, 30, Color::RED);
+        drawing.draw_text(&text_size_str, 5, text_pos_y, 30, Color::RED);
     }
-    drawing.draw_text(brush_type_str, 5, 5, 30, Color::RED);
-    drawing.draw_text(&zoom_str, 5, 60, 30, Color::RED);
+    text_pos_y += 30;
+    drawing.draw_text(&zoom_str, 5, text_pos_y, 30, Color::RED);
+    text_pos_y += 30;
 
     let mode_str = format!("Mode: {:?}", state.mode);
-    drawing.draw_text(&mode_str, 5, 90, 30, Color::RED);
+    drawing.draw_text(&mode_str, 5, text_pos_y, 30, Color::RED);
+
+    for location in &state.locations {
+        text_pos_y += 30;
+        let location_str = format!("Location ({:?})", location);
+        drawing.draw_text(&location_str, 5, text_pos_y, 30, Color::RED);
+    }
 }
 
 pub fn debug_draw_info(

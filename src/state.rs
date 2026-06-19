@@ -68,6 +68,7 @@ pub struct State {
     pub selected_things: Vec<ThingKey>,
     #[serde(skip)]
     pub mouse_drag_box: Option<BoundingBox2D>,
+    pub locations: Vec<Vector2>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
@@ -102,7 +103,8 @@ impl State {
 
     pub fn move_things_with_undo(&mut self, thing_keys: &[ThingKey], move_diff: Vector2) {
         self.apply_move_to_things(thing_keys, move_diff);
-        self.undo_actions.push(Action::MoveThings(thing_keys.to_vec(), move_diff));
+        self.undo_actions
+            .push(Action::MoveThings(thing_keys.to_vec(), move_diff));
     }
 
     pub fn apply_move_to_things(&mut self, thing_keys: &[ThingKey], move_diff: Vector2) {
@@ -160,9 +162,13 @@ impl State {
                     }
                     Action::MoveThings(thing_keys, move_diff) => {
                         // Undo by applying the inverse move
-                        let inverse_diff = Vector2 { x: -move_diff.x, y: -move_diff.y };
+                        let inverse_diff = Vector2 {
+                            x: -move_diff.x,
+                            y: -move_diff.y,
+                        };
                         self.apply_move_to_things(&thing_keys, inverse_diff);
-                        self.redo_actions.push(Action::MoveThings(thing_keys, move_diff));
+                        self.redo_actions
+                            .push(Action::MoveThings(thing_keys, move_diff));
                         break;
                     }
                 }
@@ -191,7 +197,8 @@ impl State {
                     Action::MoveThings(thing_keys, move_diff) => {
                         // Redo by applying the original move again
                         self.apply_move_to_things(&thing_keys, move_diff);
-                        self.undo_actions.push(Action::MoveThings(thing_keys, move_diff));
+                        self.undo_actions
+                            .push(Action::MoveThings(thing_keys, move_diff));
                         break;
                     }
                 }

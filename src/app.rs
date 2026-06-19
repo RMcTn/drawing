@@ -106,7 +106,10 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         play_frame_counter: 0,
         selected_things: vec![],
         mouse_drag_box: None,
+        locations: Vec::new(),
     };
+
+    state.locations.push(rvec2(500, 500));
 
     if let Some(replay_path) = replay_path {
         if let Some(()) = load_replay(
@@ -490,6 +493,17 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                 &mut state,
                 delta_time,
             );
+        }
+
+        if rl.is_key_pressed(KeyboardKey::KEY_Y) {
+            // TODO: put jumps into the command system for undo/redo state (idk if we want this to
+            // be a separate 'navigation' command concept thing yet but we'll cross that bridge
+            // someday maybe)
+            state.camera.target = *state.locations.last().unwrap();
+        }
+
+        if rl.is_key_pressed(KeyboardKey::KEY_U) {
+            state.locations.push(state.camera.target);
         }
 
         // TODO: Configurable mouse buttons
