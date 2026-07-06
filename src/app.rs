@@ -114,8 +114,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     state.locations.push(rvec2(3500, 500));
 
     let mut show_location_gui = true;
-    let mut location_list_scroll_index = 0;
     let mut location_list_view_focus = 0;
+    let mut location_selected_location_index = -1;
 
     if let Some(replay_path) = replay_path {
         if let Some(()) = load_replay(
@@ -501,13 +501,6 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             );
         }
 
-        if rl.is_key_pressed(KeyboardKey::KEY_Y) {
-            // TODO: put jumps into the command system for undo/redo state (idk if we want this to
-            // be a separate 'navigation' command concept thing yet but we'll cross that bridge
-            // someday maybe)
-            state.camera.target = *state.locations.last().unwrap();
-        }
-
         if rl.is_key_pressed(KeyboardKey::KEY_U) {
             state.locations.push(state.camera.target);
         }
@@ -770,17 +763,14 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                 debug_draw_info(&mut drawing, &state, mouse_drawing_pos, current_fps);
             }
 
-            fn draw_location_list() {}
             if show_location_gui {
-                drawing.gui_list_view_ex(
-                    rrect(200, 300, 300, 300),
-                    state
-                        .locations
-                        .iter()
-                        .map(|loc| format!("{:?} location", loc)),
+                // TODO: Currently draws and does camera jump logic. would be nice to separate
+                draw_location_list(
+                    &mut location_selected_location_index,
                     &mut location_list_view_focus,
-                    &mut location_list_scroll_index,
-                    &mut show_location_gui.into(),
+                    &state.locations,
+                    &mut state.camera,
+                    &mut drawing,
                 );
             }
         }
@@ -1197,4 +1187,39 @@ fn close_color_picker(
     // TODO: REFACTOR: This also feels like a gui state thing
     *color_picker_info = None;
     *color_picker_closed_this_frame = true;
+}
+
+fn jump_camera_to(camera: &mut Camera2D, location: Vector2) {
+    // TODO: put jumps into the command system for undo/redo state (idk if we want this to
+    // be a separate 'navigation' command concept thing yet but we'll cross that bridge
+    // someday maybe)
+    camera.target = location;
+}
+
+fn draw_location_list(
+    location_selected_location_index: &mut i32,
+    location_list_view_focus: &mut i32,
+    locations: &[Vector2],
+    camera: &mut Camera2D,
+    drawing: &mut RaylibDrawHandle,
+) {
+    let mut just_selected_location_index = *location_selected_location_index;
+    drawing.gui_list_view_ex(
+        rrect(200, 300, 300, 300),
+        locations.iter().map(|loc| format!("{:?} location", loc)),
+        location_list_view_focus,
+        &mut just_selected_location_index,
+        &mut 0, // Index of hovered over element, we only want clicks
+    );
+
+    if just_selected_location_index >= 0
+        && just_selected_location_index != *location_selected_location_index
+    {
+        // BUG: Clicking a location, moving away, then clicking the same location won't
+        // jump with this current method
+        let location = locations[just_selected_location_index as usize];
+        jump_camera_to(camera, location);
+
+        *location_selected_location_index = just_selected_location_index;
+    }
 }
