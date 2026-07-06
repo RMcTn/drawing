@@ -110,6 +110,12 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     };
 
     state.locations.push(rvec2(500, 500));
+    state.locations.push(rvec2(1500, 500));
+    state.locations.push(rvec2(3500, 500));
+
+    let mut show_location_gui = true;
+    let mut location_list_scroll_index = 0;
+    let mut location_list_view_focus = 0;
 
     if let Some(replay_path) = replay_path {
         if let Some(()) = load_replay(
@@ -762,6 +768,20 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
 
             if debugging {
                 debug_draw_info(&mut drawing, &state, mouse_drawing_pos, current_fps);
+            }
+
+            fn draw_location_list() {}
+            if show_location_gui {
+                drawing.gui_list_view_ex(
+                    rrect(200, 300, 300, 300),
+                    state
+                        .locations
+                        .iter()
+                        .map(|loc| format!("{:?} location", loc)),
+                    &mut location_list_view_focus,
+                    &mut location_list_scroll_index,
+                    &mut show_location_gui.into(),
+                );
             }
         }
 
