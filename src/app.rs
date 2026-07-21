@@ -87,6 +87,14 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         brush_size: initial_brush_size,
     };
 
+    /*
+     *
+     * Get all active gui elements
+     * get their bounds
+     * check current click pos not within any of those bounds
+     *
+     */
+
     let mut state = State {
         things: SlotMap::with_key(),
         undo_actions: Vec::new(),
