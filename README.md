@@ -13,6 +13,7 @@ https://github.com/RMcTn/drawing/assets/18317099/b1c4285c-d16c-4665-9e13-d72e929
 #### Key bindings
 Keys cannot be rebound yet until an interface is built for that.
 #### Text Tool
+- TODO: Add editing for existing text elements.
 - Delete mode will only delete brush strokes at this time. Text cannot be removed.
 - Text font cannot be changed.
 - Text size cannot be changed.

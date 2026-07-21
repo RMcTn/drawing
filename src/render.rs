@@ -1,8 +1,9 @@
 use crate::app::{Brush, Renderable, Stroke, Thing, Things};
 use raylib::color::Color;
 use raylib::drawing::{RaylibDraw, RaylibDrawHandle, RaylibMode2D};
-use raylib::math::{rvec2, Vector2};
+use raylib::math::{rrect, rvec2, Vector2};
 use raylib::text::WeakFont;
+use raylib::texture::Texture2D;
 
 pub fn draw_stroke(drawing: &mut RaylibMode2D<RaylibDrawHandle>, stroke: &Stroke, brush_size: f32) {
     if stroke.points.is_empty() {
@@ -35,6 +36,7 @@ pub fn draw_thing_at_offset(
     drawing: &mut RaylibMode2D<RaylibDrawHandle>,
     thing: &Thing,
     offset: Vector2,
+    image_texture: Option<&Texture2D>,
 ) {
     match &thing.kind {
         Renderable::Stroke(stroke) => {
@@ -52,6 +54,21 @@ pub fn draw_thing_at_offset(
                     offset_pos.y as i32,
                     text.size.0 as i32,
                     text.color.0,
+                );
+            }
+        }
+        Renderable::Image(image) => {
+            if let Some(texture) = image_texture {
+                let mut destination = image.rect;
+                destination.x += offset.x;
+                destination.y += offset.y;
+                drawing.draw_texture_pro(
+                    texture,
+                    rrect(0, 0, texture.width, texture.height),
+                    destination,
+                    rvec2(0, 0),
+                    0.0,
+                    Color::WHITE,
                 );
             }
         }

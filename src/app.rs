@@ -3,6 +3,7 @@ use crate::gui::{
     draw_keymap, is_clicking_gui,
 };
 use crate::replay::{load_replay, play_replay, replay_inputs};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use log::{debug, error};
 use raylib::prelude::{Vector2, *};
 use serde::{Deserialize, Serialize};
@@ -17,8 +18,8 @@ use std::{
 };
 
 use crate::input::{
-    get_char_pressed, is_mouse_button_down, is_mouse_button_pressed, process_key_down_events,
-    process_key_pressed_events, was_mouse_button_released,
+    get_char_pressed, is_mouse_button_down, is_mouse_button_pressed, paste_clipboard,
+    process_key_down_events, process_key_pressed_events, was_mouse_button_released,
 };
 use crate::render::{draw_bounding_boxes, draw_brush_marker, draw_stroke, draw_thing_at_offset};
 use crate::state::{ForegroundColor, State, TextColor, TextSize};
@@ -125,6 +126,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     let mut working_stroke = Stroke::new(ForegroundColor::default().0, brush.brush_size);
     let mut working_text: Option<Text> = None;
     let mut working_move: Option<(Vector2, Vector2)> = None;
+    let mut image_textures: HashMap<ThingKey, (usize, Texture2D)> = HashMap::new();
     let mut last_mouse_pos = rl.get_mouse_position();
 
     let mut color_picker_info: Option<GuiColorPickerInfo> = None;
@@ -229,6 +231,20 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             {
                 close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
             }
+        }
+
+        let paste_pressed = rl.is_key_pressed(KeyboardKey::KEY_V)
+            && (rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL)
+                || rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL)
+                || rl.is_key_down(KeyboardKey::KEY_LEFT_SUPER)
+                || rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER));
+        if paste_pressed {
+            let text_target = if state.mode == Mode::TypingText {
+                working_text.as_mut()
+            } else {
+                None
+            };
+            paste_clipboard(&mut state, mouse_drawing_pos, text_target);
         }
 
         match state.mode {
@@ -437,7 +453,11 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                     close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
                 }
 
-                let char_pressed = get_char_pressed();
+                let char_pressed = if paste_pressed {
+                    None
+                } else {
+                    get_char_pressed()
+                };
 
                 // TODO: FIXME: BUG: Raylib's event automation doesn't track chars pressed (probably due to
                 // platform differences). If we relied on key pressed instead, then:
@@ -471,16 +491,19 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             // TODO: FIXME: If these keymaps share keys (like S to move the camera, and ctrl + S to
             // save), then both will actions be triggered. Haven't thought about how to handle
             // that yet
-            process_key_pressed_events(
-                &keymap,
-                &mut debugging,
-                &mut rl,
-                &mut brush,
-                &mut state,
-                &mut processed_press_commands,
-                &mut automation_events_list,
-                &mut automation_events,
-            );
+            // Ctrl/Cmd+V must not also trigger the plain-V recording shortcut.
+            if !paste_pressed {
+                process_key_pressed_events(
+                    &keymap,
+                    &mut debugging,
+                    &mut rl,
+                    &mut brush,
+                    &mut state,
+                    &mut processed_press_commands,
+                    &mut automation_events_list,
+                    &mut automation_events,
+                );
+            }
             process_key_down_events(
                 &keymap,
                 screen_width,
@@ -538,6 +561,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             }
         }
 
+        sync_image_textures(&mut image_textures, &state.things, &mut rl, &rl_thread);
+
         {
             let mut drawing = rl.begin_drawing(&rl_thread);
             {
@@ -581,6 +606,20 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                                     }
                                 }
                             }
+                            Renderable::Image(image) => {
+                                if camera_view_boundary.check_collision_recs(&image.rect) {
+                                    if let Some((_, texture)) = image_textures.get(&thing_key) {
+                                        drawing_camera.draw_texture_pro(
+                                            texture,
+                                            rrect(0, 0, texture.width(), texture.height()),
+                                            image.rect,
+                                            rvec2(0, 0),
+                                            0.0,
+                                            Color::WHITE,
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                     if !is_dragging_selected {
@@ -609,7 +648,14 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         // Draw preview of selected things at their new positions
                         for selected_key in &state.selected_things {
                             if let Some(thing) = state.things.get(*selected_key) {
-                                draw_thing_at_offset(&mut drawing_camera, thing, move_diff);
+                                draw_thing_at_offset(
+                                    &mut drawing_camera,
+                                    thing,
+                                    move_diff,
+                                    image_textures
+                                        .get(selected_key)
+                                        .map(|(_, texture)| texture),
+                                );
                             }
                         }
 
@@ -766,6 +812,49 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     }
 }
 
+fn sync_image_textures(
+    textures: &mut HashMap<ThingKey, (usize, Texture2D)>,
+    things: &Things,
+    rl: &mut RaylibHandle,
+    thread: &RaylibThread,
+) {
+    textures.retain(|key, _| {
+        matches!(
+            things.get(*key).map(|thing| &thing.kind),
+            Some(Renderable::Image(_))
+        )
+    });
+
+    for (key, thing) in things {
+        let Renderable::Image(canvas_image) = &thing.kind else {
+            continue;
+        };
+        // SlotMap keys can be reused when a different drawing is loaded. The allocation identity
+        // lets us invalidate that key without hashing every embedded image on every frame.
+        let data_identity = canvas_image.png_data.as_ptr() as usize;
+        if textures
+            .get(&key)
+            .is_some_and(|(cached_identity, _)| *cached_identity == data_identity)
+        {
+            continue;
+        }
+
+        let image = match Image::load_image_from_mem(".png", &canvas_image.png_data) {
+            Ok(image) => image,
+            Err(err) => {
+                error!("Could not decode pasted image: {err}");
+                continue;
+            }
+        };
+        match rl.load_texture_from_image(thread, &image) {
+            Ok(texture) => {
+                textures.insert(key, (data_identity, texture));
+            }
+            Err(err) => error!("Could not upload pasted image to the GPU: {err}"),
+        }
+    }
+}
+
 fn apply_mouse_drag_to_camera(mouse_pos: Vector2, last_mouse_pos: Vector2, camera: &mut Camera2D) {
     // TODO(reece): Dragging and drawing can be done together at the moment, but it's very jaggy
     let mouse_diff = mouse_pos - last_mouse_pos;
@@ -856,6 +945,37 @@ pub(crate) struct Stroke {
 pub enum Renderable {
     Stroke(Stroke),
     Text(Text),
+    Image(CanvasImage),
+}
+
+/// A pasted image is positioned and selected like every other renderable. The compressed PNG is
+/// embedded in the drawing so a save remains a single portable file; only the GPU texture is kept
+/// outside serialized state.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub(crate) struct CanvasImage {
+    pub rect: Rectangle,
+    #[serde(with = "base64_bytes")]
+    pub png_data: Vec<u8>,
+}
+
+mod base64_bytes {
+    use super::*;
+    use serde::de::Error as _;
+
+    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&BASE64.encode(bytes))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let encoded = String::deserialize(deserializer)?;
+        BASE64.decode(encoded).map_err(D::Error::custom)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -942,6 +1062,13 @@ impl Thing {
                 }
                 None
             }
+            Renderable::Image(image) => Some(BoundingBox2D {
+                min: rvec2(image.rect.x, image.rect.y),
+                max: rvec2(
+                    image.rect.x + image.rect.width,
+                    image.rect.y + image.rect.height,
+                ),
+            }),
         }
     }
 }

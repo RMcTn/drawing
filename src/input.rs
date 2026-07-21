@@ -1,6 +1,10 @@
 use std::cmp;
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::path::Path;
+
+use arboard::Clipboard;
+use image::{DynamicImage, ImageFormat, RgbaImage};
 
 use log::{debug, error, info};
 use raylib::automation::{AutomationEvent, AutomationEventList};
@@ -10,8 +14,8 @@ use raylib::math::rrect;
 use raylib::RaylibHandle;
 
 use crate::app::{
-    Brush, GuiColorPickerInfo, HoldCommand, Keymap, Mode, Point, PressCommand, Stroke, Text, Thing,
-    Tool, RECORDING_OUTPUT_PATH,
+    Brush, CanvasImage, GuiColorPickerInfo, HoldCommand, Keymap, Mode, Point, PressCommand,
+    Renderable, Stroke, Text, Thing, Tool, RECORDING_OUTPUT_PATH,
 };
 use crate::persistence::{self, save, save_with_file_picker};
 use crate::replay::{load_replay, play_replay};
@@ -236,6 +240,67 @@ pub fn get_char_pressed() -> Option<u32> {
     }
 
     return Some(char_pressed as u32);
+}
+
+/// Paste clipboard text into the active text object, or create a text/image renderable at `position`.
+/// Images take precedence outside text-entry mode because some clipboard providers expose both.
+pub fn paste_clipboard(
+    state: &mut State,
+    position: raylib::math::Vector2,
+    working_text: Option<&mut Text>,
+) {
+    let mut clipboard = match Clipboard::new() {
+        Ok(clipboard) => clipboard,
+        Err(err) => {
+            error!("Could not open clipboard: {err}");
+            return;
+        }
+    };
+
+    if let Some(text) = working_text {
+        match clipboard.get_text() {
+            Ok(content) => text.content.push_str(&content),
+            Err(err) => debug!("Clipboard does not contain text: {err}"),
+        }
+        return;
+    }
+
+    if let Ok(image) = clipboard.get_image() {
+        let width = image.width as u32;
+        let height = image.height as u32;
+        let Some(rgba) = RgbaImage::from_raw(width, height, image.bytes.into_owned()) else {
+            error!("Clipboard returned invalid RGBA image data");
+            return;
+        };
+        let mut png_data = Vec::new();
+        if let Err(err) = DynamicImage::ImageRgba8(rgba)
+            .write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
+        {
+            error!("Could not encode clipboard image: {err}");
+            return;
+        }
+
+        state.add_thing_with_undo(Thing {
+            kind: Renderable::Image(CanvasImage {
+                rect: rrect(position.x, position.y, width as i32, height as i32),
+                png_data,
+            }),
+        });
+        return;
+    }
+
+    match clipboard.get_text() {
+        Ok(content) if !content.is_empty() => state.add_thing_with_undo(Thing {
+            kind: Renderable::Text(Text {
+                content,
+                position: Some(position),
+                size: state.text_size,
+                color: state.text_color,
+            }),
+        }),
+        Ok(_) => {}
+        Err(err) => debug!("Clipboard does not contain text or an image: {err}"),
+    }
 }
 
 pub fn append_input_to_working_text(

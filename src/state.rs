@@ -121,6 +121,10 @@ impl State {
                             position.y += move_diff.y;
                         }
                     }
+                    Renderable::Image(image) => {
+                        image.rect.x += move_diff.x;
+                        image.rect.y += move_diff.y;
+                    }
                 }
             }
         }
