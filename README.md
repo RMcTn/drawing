@@ -14,10 +14,17 @@ https://github.com/RMcTn/drawing/assets/18317099/b1c4285c-d16c-4665-9e13-d72e929
 Keys cannot be rebound yet until an interface is built for that.
 #### Selection Tool
 - Text and images can be resized using the handle at the bottom-right of a selection.
+- TODO: Decide how a click selects one `Thing` when several overlap at that point.
+- TODO: Allow editing an existing text element after selecting it.
+- TODO: Allow changing the colour of selected things. A group colour change should apply to all
+  supported selected types even when their current colours differ; images may remain unaffected.
 - TODO: Decide how resizing should affect brush strokes (point scaling, brush-width scaling, or both).
 
+#### Canvas and zoom
+- TODO: Expand the zoom range in both directions so more canvas is usable. Verify coordinate
+  precision, brush sizes, hit testing, selection handles, culling, and rendering at the new limits.
+
 #### Text Tool
-- TODO: Add editing for existing text elements.
 - Delete mode will only delete brush strokes at this time. Text cannot be removed.
 - Text font cannot be changed.
 - Text size cannot be changed.
