@@ -5,7 +5,10 @@ use raylib::math::Vector2;
 use raylib::{camera::Camera2D, color::Color};
 use serde::{Deserialize, Serialize};
 
-use crate::app::{Action, BoundingBox2D, Mode, Renderable, Thing, ThingKey, Things, Tool};
+use crate::app::{
+    Action, BoundingBox2D, Mode, Renderable, ResizeChange, ResizeGeometry, Thing, ThingKey, Things,
+    Tool,
+};
 
 #[derive(Deserialize, Serialize)]
 pub struct BackgroundColor(pub Color);
@@ -102,7 +105,8 @@ impl State {
 
     pub fn move_things_with_undo(&mut self, thing_keys: &[ThingKey], move_diff: Vector2) {
         self.apply_move_to_things(thing_keys, move_diff);
-        self.undo_actions.push(Action::MoveThings(thing_keys.to_vec(), move_diff));
+        self.undo_actions
+            .push(Action::MoveThings(thing_keys.to_vec(), move_diff));
     }
 
     pub fn apply_move_to_things(&mut self, thing_keys: &[ThingKey], move_diff: Vector2) {
@@ -127,6 +131,82 @@ impl State {
                     }
                 }
             }
+        }
+    }
+
+    pub fn capture_resize_changes(&self, thing_keys: &[ThingKey]) -> Vec<ResizeChange> {
+        thing_keys
+            .iter()
+            .filter_map(|key| {
+                let geometry = match &self.things.get(*key)?.kind {
+                    Renderable::Text(text) => ResizeGeometry::Text {
+                        position: text.position?,
+                        size: text.size,
+                    },
+                    Renderable::Image(image) => ResizeGeometry::Image { rect: image.rect },
+                    Renderable::Stroke(_) => return None,
+                };
+                Some(ResizeChange {
+                    key: *key,
+                    before: geometry,
+                    after: geometry,
+                })
+            })
+            .collect()
+    }
+
+    pub fn preview_resize(&mut self, changes: &mut [ResizeChange], anchor: Vector2, scale: f32) {
+        for change in changes {
+            change.after = match change.before {
+                ResizeGeometry::Text { position, size } => ResizeGeometry::Text {
+                    position: anchor + (position - anchor) * scale,
+                    size: TextSize(((size.0 as f32 * scale).round() as u32).max(1)),
+                },
+                ResizeGeometry::Image { rect } => ResizeGeometry::Image {
+                    rect: raylib::math::rrect(
+                        anchor.x + (rect.x - anchor.x) * scale,
+                        anchor.y + (rect.y - anchor.y) * scale,
+                        rect.width * scale,
+                        rect.height * scale,
+                    ),
+                },
+            };
+            self.apply_resize_geometry(change.key, change.after);
+        }
+    }
+
+    pub fn commit_resize_with_undo(&mut self, changes: Vec<ResizeChange>) {
+        let changes: Vec<_> = changes
+            .into_iter()
+            .filter(|change| change.before != change.after)
+            .collect();
+        if !changes.is_empty() {
+            self.undo_actions.push(Action::ResizeThings(changes));
+        }
+    }
+
+    fn apply_resize_geometry(&mut self, key: ThingKey, geometry: ResizeGeometry) {
+        let Some(thing) = self.things.get_mut(key) else {
+            return;
+        };
+        match (&mut thing.kind, geometry) {
+            (Renderable::Text(text), ResizeGeometry::Text { position, size }) => {
+                text.position = Some(position);
+                text.size = size;
+            }
+            (Renderable::Image(image), ResizeGeometry::Image { rect }) => image.rect = rect,
+            _ => {}
+        }
+    }
+
+    fn apply_resize_changes(&mut self, changes: &[ResizeChange], use_after: bool) {
+        for change in changes {
+            let geometry = if use_after {
+                change.after
+            } else {
+                change.before
+            };
+            self.apply_resize_geometry(change.key, geometry);
         }
     }
 
@@ -164,9 +244,18 @@ impl State {
                     }
                     Action::MoveThings(thing_keys, move_diff) => {
                         // Undo by applying the inverse move
-                        let inverse_diff = Vector2 { x: -move_diff.x, y: -move_diff.y };
+                        let inverse_diff = Vector2 {
+                            x: -move_diff.x,
+                            y: -move_diff.y,
+                        };
                         self.apply_move_to_things(&thing_keys, inverse_diff);
-                        self.redo_actions.push(Action::MoveThings(thing_keys, move_diff));
+                        self.redo_actions
+                            .push(Action::MoveThings(thing_keys, move_diff));
+                        break;
+                    }
+                    Action::ResizeThings(changes) => {
+                        self.apply_resize_changes(&changes, false);
+                        self.redo_actions.push(Action::ResizeThings(changes));
                         break;
                     }
                 }
@@ -195,7 +284,13 @@ impl State {
                     Action::MoveThings(thing_keys, move_diff) => {
                         // Redo by applying the original move again
                         self.apply_move_to_things(&thing_keys, move_diff);
-                        self.undo_actions.push(Action::MoveThings(thing_keys, move_diff));
+                        self.undo_actions
+                            .push(Action::MoveThings(thing_keys, move_diff));
+                        break;
+                    }
+                    Action::ResizeThings(changes) => {
+                        self.apply_resize_changes(&changes, true);
+                        self.undo_actions.push(Action::ResizeThings(changes));
                         break;
                     }
                 }
@@ -259,7 +354,7 @@ mod tests {
     use raylib::prelude::Color;
 
     use crate::{
-        app::{Renderable, Stroke, Text, Thing},
+        app::{CanvasImage, Renderable, Stroke, Text, Thing},
         state::{TextColor, TextSize},
     };
 
@@ -337,6 +432,52 @@ mod tests {
         state.redo();
         assert_eq!(state.things.len(), 1);
         assert_eq!(state.things_graveyard.len(), 0);
+    }
+
+    #[test]
+    fn it_resizes_text_and_images_with_undo() {
+        let mut state = State::default();
+        let text_key = state.add_thing(Thing {
+            kind: Renderable::Text(Text {
+                content: "Stuff".to_string(),
+                position: Some(raylib::math::rvec2(10, 20)),
+                size: TextSize(20),
+                color: TextColor(Color::BLACK),
+            }),
+        });
+        let image_key = state.add_thing(Thing {
+            kind: Renderable::Image(CanvasImage {
+                rect: raylib::math::rrect(30, 40, 100, 50),
+                png_data: vec![],
+            }),
+        });
+
+        let mut changes = state.capture_resize_changes(&[text_key, image_key]);
+        state.preview_resize(&mut changes, raylib::math::rvec2(0, 0), 2.0);
+        state.commit_resize_with_undo(changes);
+
+        let Renderable::Text(text) = &state.things[text_key].kind else {
+            panic!("expected text")
+        };
+        assert_eq!(text.position, Some(raylib::math::rvec2(20, 40)));
+        assert_eq!(text.size, TextSize(40));
+        let Renderable::Image(image) = &state.things[image_key].kind else {
+            panic!("expected image")
+        };
+        assert_eq!(image.rect, raylib::math::rrect(60, 80, 200, 100));
+
+        state.undo();
+        let Renderable::Text(text) = &state.things[text_key].kind else {
+            panic!("expected text")
+        };
+        assert_eq!(text.position, Some(raylib::math::rvec2(10, 20)));
+        assert_eq!(text.size, TextSize(20));
+
+        state.redo();
+        let Renderable::Image(image) = &state.things[image_key].kind else {
+            panic!("expected image")
+        };
+        assert_eq!(image.rect, raylib::math::rrect(60, 80, 200, 100));
     }
 
     #[test]

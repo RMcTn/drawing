@@ -12,6 +12,10 @@ https://github.com/RMcTn/drawing/assets/18317099/b1c4285c-d16c-4665-9e13-d72e929
 ## Limitations
 #### Key bindings
 Keys cannot be rebound yet until an interface is built for that.
+#### Selection Tool
+- Text and images can be resized using the handle at the bottom-right of a selection.
+- TODO: Decide how resizing should affect brush strokes (point scaling, brush-width scaling, or both).
+
 #### Text Tool
 - TODO: Add editing for existing text elements.
 - Delete mode will only delete brush strokes at this time. Text cannot be removed.

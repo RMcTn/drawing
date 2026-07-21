@@ -126,6 +126,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     let mut working_stroke = Stroke::new(ForegroundColor::default().0, brush.brush_size);
     let mut working_text: Option<Text> = None;
     let mut working_move: Option<(Vector2, Vector2)> = None;
+    let mut working_resize: Option<WorkingResize> = None;
     let mut image_textures: HashMap<ThingKey, (usize, Texture2D)> = HashMap::new();
     let mut last_mouse_pos = rl.get_mouse_position();
 
@@ -381,14 +382,28 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
                     ) {
-                        // When we press the mouse button, we should start tracking
-                        // - Where the mouse was pressed originally
-                        // - Where the mouse currently is
-
-                        if let Some(working_move) = working_move.as_mut() {
+                        if let Some(resize) = working_resize.as_mut() {
+                            let scale = resize_scale(resize, mouse_drawing_pos);
+                            state.preview_resize(&mut resize.changes, resize.anchor, scale);
+                        } else if let Some(working_move) = working_move.as_mut() {
                             working_move.1 = mouse_drawing_pos;
                         } else {
-                            working_move = Some((mouse_drawing_pos, mouse_drawing_pos));
+                            let resize_bounds = resizable_selection_bounds(&state, &font)
+                                .map(|bounds| resize_handle(bounds, state.camera.zoom));
+                            if resize_bounds.is_some_and(|handle| {
+                                handle.check_collision_point_rec(mouse_drawing_pos)
+                            }) {
+                                if let Some(bounds) = resizable_selection_bounds(&state, &font) {
+                                    working_resize = Some(WorkingResize {
+                                        anchor: bounds.min,
+                                        diagonal: mouse_drawing_pos - bounds.min,
+                                        changes: state
+                                            .capture_resize_changes(&state.selected_things),
+                                    });
+                                }
+                            } else {
+                                working_move = Some((mouse_drawing_pos, mouse_drawing_pos));
+                            }
                         }
                     }
 
@@ -397,11 +412,13 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mouse_buttons_pressed_last_frame,
                     ) {
-                        // When we release the mouse button, apply the move action
-                        if let Some(working_move) = working_move {
+                        if let Some(mut resize) = working_resize.take() {
+                            let scale = resize_scale(&resize, mouse_drawing_pos);
+                            state.preview_resize(&mut resize.changes, resize.anchor, scale);
+                            state.commit_resize_with_undo(resize.changes);
+                        } else if let Some(working_move) = working_move {
                             let move_diff = working_move.1 - working_move.0;
 
-                            // Only apply move if there was actual movement
                             if move_diff.x.abs() > 0.0 || move_diff.y.abs() > 0.0 {
                                 state.move_things_with_undo(
                                     &state.selected_things.clone(),
@@ -652,9 +669,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                                     &mut drawing_camera,
                                     thing,
                                     move_diff,
-                                    image_textures
-                                        .get(selected_key)
-                                        .map(|(_, texture)| texture),
+                                    image_textures.get(selected_key).map(|(_, texture)| texture),
                                 );
                             }
                         }
@@ -675,6 +690,15 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                                     );
                                 }
                             }
+                        }
+                    }
+
+                    if working_move.is_none() {
+                        if let Some(bounds) = resizable_selection_bounds(&state, &font) {
+                            drawing_camera.draw_rectangle_rec(
+                                resize_handle(bounds, state.camera.zoom),
+                                Color::DARKRED,
+                            );
                         }
                     }
                 }
@@ -810,6 +834,60 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             *was_pressed = false;
         }
     }
+}
+
+const RESIZE_HANDLE_SCREEN_SIZE: f32 = 14.0;
+
+struct WorkingResize {
+    anchor: Vector2,
+    diagonal: Vector2,
+    changes: Vec<ResizeChange>,
+}
+
+fn resizable_selection_bounds(state: &State, font: &WeakFont) -> Option<BoundingBox2D> {
+    state
+        .selected_things
+        .iter()
+        .filter_map(|key| state.things.get(*key))
+        .filter(|thing| matches!(thing.kind, Renderable::Text(_) | Renderable::Image(_)))
+        .filter_map(|thing| thing.bounding_box(font))
+        .fold(None::<BoundingBox2D>, |combined, bounds| {
+            Some(match combined {
+                None => bounds,
+                Some(combined) => BoundingBox2D {
+                    min: rvec2(
+                        combined.min.x.min(bounds.min.x),
+                        combined.min.y.min(bounds.min.y),
+                    ),
+                    max: rvec2(
+                        combined.max.x.max(bounds.max.x),
+                        combined.max.y.max(bounds.max.y),
+                    ),
+                },
+            })
+        })
+}
+
+fn resize_handle(bounds: BoundingBox2D, zoom: f32) -> Rectangle {
+    let size = RESIZE_HANDLE_SCREEN_SIZE / zoom;
+    rrect(
+        bounds.max.x - size / 2.0,
+        bounds.max.y - size / 2.0,
+        size,
+        size,
+    )
+}
+
+fn resize_scale(resize: &WorkingResize, mouse_position: Vector2) -> f32 {
+    let current_diagonal = mouse_position - resize.anchor;
+    let denominator = resize.diagonal.x.powi(2) + resize.diagonal.y.powi(2);
+    if denominator <= f32::EPSILON {
+        return 1.0;
+    }
+
+    ((current_diagonal.x * resize.diagonal.x + current_diagonal.y * resize.diagonal.y)
+        / denominator)
+        .max(0.05)
 }
 
 fn sync_image_textures(
@@ -1089,11 +1167,25 @@ new_key_type! { pub(crate) struct ThingKey; }
 pub(crate) type Things = SlotMap<ThingKey, Thing>;
 
 new_key_type! { pub(crate) struct TextKey; }
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
+pub(crate) enum ResizeGeometry {
+    Text { position: Vector2, size: TextSize },
+    Image { rect: Rectangle },
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
+pub(crate) struct ResizeChange {
+    pub key: ThingKey,
+    pub before: ResizeGeometry,
+    pub after: ResizeGeometry,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) enum Action {
     AddThing(ThingKey),
     RemoveThing(ThingKey),
     MoveThings(Vec<ThingKey>, Vector2),
+    ResizeThings(Vec<ResizeChange>),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
