@@ -32,6 +32,39 @@ pub fn draw_stroke_at_offset(
     drawing.draw_spline_basis(&points, brush_size, stroke.color);
 }
 
+pub fn draw_thing(
+    drawing: &mut RaylibMode2D<RaylibDrawHandle>,
+    thing: &Thing,
+    image_texture: Option<&Texture2D>,
+) {
+    match &thing.kind {
+        Renderable::Stroke(stroke) => draw_stroke(drawing, stroke, stroke.brush_size),
+        Renderable::Text(text) => {
+            if let Some(position) = text.position {
+                drawing.draw_text(
+                    &text.content,
+                    position.x as i32,
+                    position.y as i32,
+                    text.size.0 as i32,
+                    text.color.0,
+                );
+            }
+        }
+        Renderable::Image(image) => {
+            if let Some(texture) = image_texture {
+                drawing.draw_texture_pro(
+                    texture,
+                    rrect(0, 0, texture.width, texture.height),
+                    image.rect,
+                    rvec2(0, 0),
+                    0.0,
+                    Color::WHITE,
+                );
+            }
+        }
+    }
+}
+
 pub fn draw_thing_at_offset(
     drawing: &mut RaylibMode2D<RaylibDrawHandle>,
     thing: &Thing,

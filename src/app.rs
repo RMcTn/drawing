@@ -21,7 +21,9 @@ use crate::input::{
     get_char_pressed, is_mouse_button_down, is_mouse_button_pressed, paste_clipboard,
     process_key_down_events, process_key_pressed_events, was_mouse_button_released,
 };
-use crate::render::{draw_bounding_boxes, draw_brush_marker, draw_stroke, draw_thing_at_offset};
+use crate::render::{
+    draw_bounding_boxes, draw_brush_marker, draw_stroke, draw_thing, draw_thing_at_offset,
+};
 use crate::state::{ForegroundColor, State, TextColor, TextSize};
 use crate::{gui::debug_draw_info, input::append_input_to_working_text};
 
@@ -587,64 +589,39 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
 
                 drawing_camera.clear_background(state.background_color.0);
 
+                // Render from back to front. Each pass preserves insertion order within its layer
+                // and avoids allocating or sorting a render list every frame.
+                for layer in RENDER_LAYERS {
+                    for (thing_key, thing) in &state.things {
+                        if thing.kind.render_layer() != layer {
+                            continue;
+                        }
+
+                        let is_dragging_selected = state.mode == Mode::UsingTool(Tool::Move)
+                            && working_move.is_some()
+                            && state.selected_things.contains(&thing_key);
+                        if !is_dragging_selected
+                            && is_thing_in_camera_view(&camera_view_boundary, thing)
+                        {
+                            draw_thing(
+                                &mut drawing_camera,
+                                thing,
+                                image_textures.get(&thing_key).map(|(_, texture)| texture),
+                            );
+                        }
+                    }
+                }
+
+                // Debug and selection decoration are overlays and should not be covered by content.
                 if debugging {
                     draw_bounding_boxes(&state.things, &mut drawing_camera, &font);
                 }
-
-                for (thing_key, thing) in &state.things {
-                    // Skip rendering selected things if we're actively dragging them in move mode
-                    let is_dragging_selected = state.mode == Mode::UsingTool(Tool::Move)
-                        && working_move.is_some()
-                        && state.selected_things.contains(&thing_key);
-
-                    if !is_dragging_selected {
-                        match &thing.kind {
-                            Renderable::Stroke(stroke) => {
-                                if is_stroke_in_camera_view(&camera_view_boundary, stroke) {
-                                    draw_stroke(&mut drawing_camera, stroke, stroke.brush_size);
-                                }
-                            }
-                            Renderable::Text(text) => {
-                                if let Some(pos) = text.position {
-                                    let text_bounds = rrect(
-                                        pos.x,
-                                        pos.y,
-                                        (text.size.0 as usize * text.content.len()) as f32,
-                                        text.size.0 as f32,
-                                    );
-                                    if camera_view_boundary.check_collision_recs(&text_bounds) {
-                                        drawing_camera.draw_text(
-                                            &text.content,
-                                            pos.x as i32,
-                                            pos.y as i32,
-                                            text.size.0 as i32,
-                                            text.color.0,
-                                        );
-                                    }
-                                }
-                            }
-                            Renderable::Image(image) => {
-                                if camera_view_boundary.check_collision_recs(&image.rect) {
-                                    if let Some((_, texture)) = image_textures.get(&thing_key) {
-                                        drawing_camera.draw_texture_pro(
-                                            texture,
-                                            rrect(0, 0, texture.width(), texture.height()),
-                                            image.rect,
-                                            rvec2(0, 0),
-                                            0.0,
-                                            Color::WHITE,
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if !is_dragging_selected {
-                        for selected_thing_key in &state.selected_things {
-                            if thing_key == *selected_thing_key {
-                                // Rough bounding box draw so we can see what we've currently selected
+                if working_move.is_none() {
+                    for selected_key in &state.selected_things {
+                        if let Some(thing) = state.things.get(*selected_key) {
+                            if let Some(bounds) = thing.bounding_box(&font) {
                                 drawing_camera.draw_rectangle_lines_ex(
-                                    thing.bounding_box(&font).unwrap().rect(),
+                                    bounds.rect(),
                                     1.0,
                                     Color::DARKRED,
                                 );
@@ -662,15 +639,21 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                     if let Some(working_move) = working_move {
                         let move_diff = working_move.1 - working_move.0;
 
-                        // Draw preview of selected things at their new positions
-                        for selected_key in &state.selected_things {
-                            if let Some(thing) = state.things.get(*selected_key) {
-                                draw_thing_at_offset(
-                                    &mut drawing_camera,
-                                    thing,
-                                    move_diff,
-                                    image_textures.get(selected_key).map(|(_, texture)| texture),
-                                );
+                        // Keep the same back-to-front ordering in the move preview.
+                        for layer in RENDER_LAYERS {
+                            for selected_key in &state.selected_things {
+                                if let Some(thing) = state.things.get(*selected_key) {
+                                    if thing.kind.render_layer() == layer {
+                                        draw_thing_at_offset(
+                                            &mut drawing_camera,
+                                            thing,
+                                            move_diff,
+                                            image_textures
+                                                .get(selected_key)
+                                                .map(|(_, texture)| texture),
+                                        );
+                                    }
+                                }
                             }
                         }
 
@@ -982,6 +965,22 @@ fn clamp_brush_size(brush: &mut Brush) {
     }
 }
 
+fn is_thing_in_camera_view(camera_boundary: &Rectangle, thing: &Thing) -> bool {
+    match &thing.kind {
+        Renderable::Image(image) => camera_boundary.check_collision_recs(&image.rect),
+        Renderable::Text(text) => text.position.is_some_and(|position| {
+            let approximate_bounds = rrect(
+                position.x,
+                position.y,
+                (text.size.0 as usize * text.content.len()) as f32,
+                text.size.0 as f32,
+            );
+            camera_boundary.check_collision_recs(&approximate_bounds)
+        }),
+        Renderable::Stroke(stroke) => is_stroke_in_camera_view(camera_boundary, stroke),
+    }
+}
+
 fn is_stroke_in_camera_view(camera_boundary: &Rectangle, stroke: &Stroke) -> bool {
     for point in &stroke.points {
         if camera_boundary.check_collision_point_rec(point) {
@@ -1024,6 +1023,26 @@ pub enum Renderable {
     Stroke(Stroke),
     Text(Text),
     Image(CanvasImage),
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum RenderLayer {
+    Image,
+    Text,
+    Stroke,
+}
+
+const RENDER_LAYERS: [RenderLayer; 3] =
+    [RenderLayer::Image, RenderLayer::Text, RenderLayer::Stroke];
+
+impl Renderable {
+    fn render_layer(&self) -> RenderLayer {
+        match self {
+            Self::Image(_) => RenderLayer::Image,
+            Self::Text(_) => RenderLayer::Text,
+            Self::Stroke(_) => RenderLayer::Stroke,
+        }
+    }
 }
 
 /// A pasted image is positioned and selected like every other renderable. The compressed PNG is
