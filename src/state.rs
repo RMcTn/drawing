@@ -71,6 +71,9 @@ pub struct State {
     pub selected_things: Vec<ThingKey>,
     #[serde(skip)]
     pub mouse_drag_box: Option<BoundingBox2D>,
+    /// Unicode code points queued by app-specific replay text events.
+    #[serde(skip)]
+    pub replay_text_input: Vec<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]

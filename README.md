@@ -90,3 +90,22 @@ TODO
 
 ### Build
 TODO
+
+### Testing
+
+Run all unit tests and the input replay regression test with:
+
+```sh
+./run-test.sh
+```
+
+Each replay test lives in `tests/<name>/`, with `<name>.rae` as its input recording and
+`expected-state.json` as its expected observable drawing state. `run-test.sh` discovers all such
+directories. It intentionally does not compare application save files, so unrelated
+persistence-format changes do not invalidate replay tests.
+
+Raylib does not record typed characters. Replay files can use draw-app event type `24`, with a
+Unicode code point in the first parameter, to replay text input deterministically.
+
+Saving and loading are covered separately by a Rust round-trip unit test in
+`src/persistence.rs`.

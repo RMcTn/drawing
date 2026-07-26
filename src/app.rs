@@ -32,7 +32,8 @@ pub const RECORDING_OUTPUT_PATH: &str = "recording.rae";
 #[derive(Debug)]
 pub struct TestSettings {
     pub save_after_replay: bool,
-    pub save_path: PathBuf,
+    pub save_path: Option<PathBuf>,
+    pub snapshot_path: Option<PathBuf>,
     pub quit_after_replay: bool,
 }
 
@@ -109,6 +110,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         play_frame_counter: 0,
         selected_things: vec![],
         mouse_drag_box: None,
+        replay_text_input: vec![],
     };
 
     if let Some(replay_path) = replay_path {
@@ -474,6 +476,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
 
                 let char_pressed = if paste_pressed {
                     None
+                } else if state.is_playing_inputs && !state.replay_text_input.is_empty() {
+                    Some(state.replay_text_input.remove(0))
                 } else {
                     get_char_pressed()
                 };

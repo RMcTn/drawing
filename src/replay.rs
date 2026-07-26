@@ -6,7 +6,11 @@ use raylib::{
     RaylibHandle,
 };
 
-use crate::{app::TestSettings, persistence::save, state::State};
+use crate::{app::TestSettings, persistence, state::State, test_snapshot};
+
+/// App-specific automation event. `params[0]` contains a Unicode code point.
+/// Raylib recordings only capture key states and cannot reproduce text character input.
+const INPUT_TEXT_CODEPOINT: u32 = 24;
 
 pub fn load_replay(
     replay_path: &Path,
@@ -69,7 +73,11 @@ pub fn replay_inputs(
             event.get_type()
         );
 
-        event.play();
+        if event.get_type() == INPUT_TEXT_CODEPOINT {
+            state.replay_text_input.push(event.params()[0] as u32);
+        } else {
+            event.play();
+        }
         state.current_play_frame += 1;
 
         if state.current_play_frame == automation_events.len() {
@@ -77,19 +85,29 @@ pub fn replay_inputs(
             info!("Finished playing replay");
             if let Some(ref test_options) = test_options {
                 if test_options.save_after_replay {
+                    let save_path = test_options
+                        .save_path
+                        .as_deref()
+                        .expect("clap requires --save-path with --save-after-replay");
                     info!("Attempting to save since replay has finished");
-                    match save(state, &test_options.save_path) {
-                        Ok(_) => {
-                            info!("Successfully saved to {}", test_options.save_path.display())
-                        }
-                        Err(e) => error!(
-                            "Failed to save to {}: {}",
-                            test_options.save_path.display(),
-                            e
-                        ),
+                    match persistence::save(state, save_path) {
+                        Ok(_) => info!("Successfully saved to {}", save_path.display()),
+                        Err(e) => error!("Failed to save to {}: {}", save_path.display(), e),
                     }
-                } else {
-                    info!("Not saving - Save after replay finishes has been disabled");
+                }
+
+                if let Some(snapshot_path) = &test_options.snapshot_path {
+                    info!(
+                        "Writing replay state snapshot to {}",
+                        snapshot_path.display()
+                    );
+                    if let Err(e) = test_snapshot::save(state, snapshot_path) {
+                        error!(
+                            "Failed to write replay state snapshot to {}: {}",
+                            snapshot_path.display(),
+                            e
+                        );
+                    }
                 }
 
                 if test_options.quit_after_replay {

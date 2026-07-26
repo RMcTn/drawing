@@ -10,6 +10,7 @@ mod persistence;
 mod render;
 mod replay;
 mod state;
+mod test_snapshot;
 
 #[derive(Parser)]
 struct Args {
@@ -20,12 +21,14 @@ struct Args {
 #[derive(Subcommand)]
 enum Commands {
     Test {
-        #[arg(long, required = true)]
+        #[arg(long, requires = "save_path")]
         save_after_replay: bool,
-        #[arg(long, required = true)]
+        #[arg(long)]
         quit_after_replay: bool,
         #[arg(long)]
-        save_path: PathBuf,
+        save_path: Option<PathBuf>,
+        #[arg(long)]
+        snapshot_path: Option<PathBuf>,
         #[arg(long)]
         replay_path: PathBuf,
     },
@@ -45,12 +48,14 @@ fn main() {
                 save_after_replay,
                 save_path,
                 replay_path,
+                snapshot_path,
                 quit_after_replay,
             } => app::run(
                 Some(replay_path),
                 Some(TestSettings {
                     save_after_replay,
                     save_path,
+                    snapshot_path,
                     quit_after_replay,
                 }),
             ),
