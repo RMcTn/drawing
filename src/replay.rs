@@ -145,6 +145,7 @@ pub struct ReplayDebugger {
     mouse_position: (f32, f32),
     pending_finish: bool,
     waiting_for_ui_mouse_release: bool,
+    user_mouse_position_to_restore: Option<(f32, f32)>,
     finished: bool,
 }
 
@@ -161,6 +162,7 @@ impl ReplayDebugger {
             mouse_position: (0.0, 0.0),
             pending_finish: false,
             waiting_for_ui_mouse_release: false,
+            user_mouse_position_to_restore: None,
             finished: false,
         }
     }
@@ -234,29 +236,38 @@ impl ReplayDebugger {
         }
     }
 
-    pub fn step_frame_from_ui(&mut self) {
+    pub fn step_frame_from_ui(&mut self, mouse_position: (f32, f32)) {
         self.step_frame();
-        self.wait_for_ui_mouse_release();
+        self.wait_for_ui_mouse_release(mouse_position);
     }
 
-    pub fn step_event_from_ui(&mut self) {
+    pub fn step_event_from_ui(&mut self, mouse_position: (f32, f32)) {
         self.step_event();
-        self.wait_for_ui_mouse_release();
+        self.wait_for_ui_mouse_release(mouse_position);
     }
 
-    pub fn step_mouse_stroke_from_ui(&mut self) {
+    pub fn step_mouse_stroke_from_ui(&mut self, mouse_position: (f32, f32)) {
         self.step_mouse_stroke();
-        self.wait_for_ui_mouse_release();
+        self.wait_for_ui_mouse_release(mouse_position);
     }
 
-    pub fn toggle_continue_from_ui(&mut self) {
+    pub fn toggle_continue_from_ui(&mut self, mouse_position: (f32, f32)) {
         self.toggle_continue();
-        self.wait_for_ui_mouse_release();
+        self.wait_for_ui_mouse_release(mouse_position);
     }
 
-    fn wait_for_ui_mouse_release(&mut self) {
+    pub fn take_user_mouse_position_to_restore(&mut self) -> Option<(f32, f32)> {
+        if self.step.is_none() && !self.simulation_needed {
+            self.user_mouse_position_to_restore.take()
+        } else {
+            None
+        }
+    }
+
+    fn wait_for_ui_mouse_release(&mut self, mouse_position: (f32, f32)) {
         if self.step.is_some() {
             self.waiting_for_ui_mouse_release = true;
+            self.user_mouse_position_to_restore = Some(mouse_position);
         }
     }
 
@@ -440,7 +451,7 @@ mod tests {
         let mut state = State::default();
         let events = vec![];
 
-        debugger.step_frame_from_ui();
+        debugger.step_frame_from_ui((12.0, 34.0));
         debug_replay_after_frame(&mut debugger, false, true, &mut state, &None, &events);
         assert!(!debugger.should_simulate());
 
@@ -449,6 +460,12 @@ mod tests {
 
         debug_replay_after_frame(&mut debugger, false, false, &mut state, &None, &events);
         assert!(debugger.should_simulate());
+
+        debug_replay_after_frame(&mut debugger, true, false, &mut state, &None, &events);
+        assert_eq!(
+            debugger.take_user_mouse_position_to_restore(),
+            Some((12.0, 34.0))
+        );
     }
 
     #[test]

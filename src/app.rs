@@ -897,6 +897,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                     &automation_events,
                     screen_width,
                     screen_height,
+                    live_mouse_pos,
                 );
             }
         }
@@ -931,6 +932,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                 let (x, y) = debugger.mouse_position();
                 rl.set_mouse_position(rvec2(x, y));
                 debugger.restore_held_input();
+            } else if let Some((x, y)) = debugger.take_user_mouse_position_to_restore() {
+                rl.set_mouse_position(rvec2(x, y));
             }
         }
     }
@@ -1536,6 +1539,7 @@ fn draw_replay_debugger(
     events: &[AutomationEvent],
     screen_width: i32,
     screen_height: i32,
+    user_mouse_position: Vector2,
 ) {
     let panel = rrect(10, screen_height - 105, screen_width - 20, 95);
     drawing.draw_rectangle_rec(panel, Color::new(30, 30, 30, 235));
@@ -1560,7 +1564,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Frame (F6)",
         ) {
-            debugger.step_frame_from_ui();
+            debugger.step_frame_from_ui((user_mouse_position.x, user_mouse_position.y));
         }
         button_x += button_width + button_gap;
         if replay_debug_button(
@@ -1568,7 +1572,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Event (F7)",
         ) {
-            debugger.step_event_from_ui();
+            debugger.step_event_from_ui((user_mouse_position.x, user_mouse_position.y));
         }
         button_x += button_width + button_gap;
         if replay_debug_button(
@@ -1576,7 +1580,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Stroke (F8)",
         ) {
-            debugger.step_mouse_stroke_from_ui();
+            debugger.step_mouse_stroke_from_ui((user_mouse_position.x, user_mouse_position.y));
         }
         button_x += button_width + button_gap;
         if replay_debug_button(
@@ -1584,7 +1588,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Continue (F5)",
         ) {
-            debugger.toggle_continue_from_ui();
+            debugger.toggle_continue_from_ui((user_mouse_position.x, user_mouse_position.y));
         }
     } else if debugger.is_running() {
         drawing.draw_text(
