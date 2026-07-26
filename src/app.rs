@@ -152,7 +152,11 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     let mut working_move: Option<(Vector2, Vector2)> = None;
     let mut working_resize: Option<WorkingResize> = None;
     let mut image_textures: HashMap<ThingKey, (usize, Texture2D)> = HashMap::new();
-    let mut last_mouse_pos = rl.get_mouse_position();
+    let mut last_mouse_pos = if replay_debugger.is_some() {
+        state.mouse_pos
+    } else {
+        rl.get_mouse_position()
+    };
 
     let mut color_picker_info: Option<GuiColorPickerInfo> = None;
 
@@ -214,7 +218,12 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         state.camera.offset = rvec2(screen_width / 2, screen_height / 2);
 
         let live_mouse_pos = rl.get_mouse_position();
-        let mouse_drawing_pos = rl.get_screen_to_world2D(live_mouse_pos, state.camera);
+        let replay_mouse_pos = replay_debugger.as_ref().map(|debugger| {
+            let (x, y) = debugger.mouse_position();
+            rvec2(x, y)
+        });
+        let simulated_mouse_pos = replay_mouse_pos.unwrap_or(live_mouse_pos);
+        let mouse_drawing_pos = rl.get_screen_to_world2D(simulated_mouse_pos, state.camera);
 
         let keymap_panel_padding_percent = 0.10;
         let keymap_panel_padding_x = screen_width as f32 * keymap_panel_padding_percent;
@@ -229,13 +238,13 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
         let pixel_color_at_mouse_pos = rl.load_image_from_screen(&rl_thread).get_color(
-            live_mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as i32,
-            live_mouse_pos.y.clamp(0.0, (screen_height - 1) as f32) as i32,
+            simulated_mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as i32,
+            simulated_mouse_pos.y.clamp(0.0, (screen_height - 1) as f32) as i32,
         );
 
         if did_simulate {
             time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
-            state.mouse_pos = live_mouse_pos;
+            state.mouse_pos = simulated_mouse_pos;
 
             let mut color_picker_closed_this_frame = false;
 
@@ -911,11 +920,17 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             if debug_replay_after_frame(
                 debugger,
                 did_simulate,
+                rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT),
                 &mut state,
                 &test_options,
                 &automation_events,
             ) {
                 return;
+            }
+            if debugger.should_simulate() {
+                let (x, y) = debugger.mouse_position();
+                rl.set_mouse_position(rvec2(x, y));
+                debugger.restore_held_input();
             }
         }
     }
@@ -1545,7 +1560,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Frame (F6)",
         ) {
-            debugger.step_frame();
+            debugger.step_frame_from_ui();
         }
         button_x += button_width + button_gap;
         if replay_debug_button(
@@ -1553,7 +1568,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Event (F7)",
         ) {
-            debugger.step_event();
+            debugger.step_event_from_ui();
         }
         button_x += button_width + button_gap;
         if replay_debug_button(
@@ -1561,7 +1576,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Stroke (F8)",
         ) {
-            debugger.step_mouse_stroke();
+            debugger.step_mouse_stroke_from_ui();
         }
         button_x += button_width + button_gap;
         if replay_debug_button(
@@ -1569,7 +1584,7 @@ fn draw_replay_debugger(
             rrect(button_x, button_y, button_width, button_height),
             "Continue (F5)",
         ) {
-            debugger.toggle_continue();
+            debugger.toggle_continue_from_ui();
         }
     } else if debugger.is_running() {
         drawing.draw_text(

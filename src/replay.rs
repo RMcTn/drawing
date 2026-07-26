@@ -3,16 +3,19 @@ use std::path::Path;
 use log::{debug, error, info};
 use raylib::{
     automation::{AutomationEvent, AutomationEventList},
-    RaylibHandle,
+    ffi, RaylibHandle,
 };
 
 use crate::{app::TestSettings, persistence, state::State, test_snapshot};
 
 /// App-specific automation event. `params[0]` contains a Unicode code point.
 /// Raylib recordings only capture key states and cannot reproduce text character input.
+const INPUT_KEY_UP: u32 = 1;
+const INPUT_KEY_DOWN: u32 = 2;
 const INPUT_TEXT_CODEPOINT: u32 = 24;
 const INPUT_MOUSE_BUTTON_UP: u32 = 5;
 const INPUT_MOUSE_BUTTON_DOWN: u32 = 6;
+const INPUT_MOUSE_POSITION: u32 = 7;
 const MOUSE_BUTTON_LEFT: i32 = 0;
 
 pub fn load_replay(
@@ -137,7 +140,11 @@ pub struct ReplayDebugger {
     pause_after_simulation: bool,
     mouse_stroke_started: bool,
     left_mouse_down: bool,
+    held_keys: [bool; 512],
+    held_mouse_buttons: [bool; 8],
+    mouse_position: (f32, f32),
     pending_finish: bool,
+    waiting_for_ui_mouse_release: bool,
     finished: bool,
 }
 
@@ -149,7 +156,11 @@ impl ReplayDebugger {
             pause_after_simulation: false,
             mouse_stroke_started: false,
             left_mouse_down: false,
+            held_keys: [false; 512],
+            held_mouse_buttons: [false; 8],
+            mouse_position: (0.0, 0.0),
             pending_finish: false,
+            waiting_for_ui_mouse_release: false,
             finished: false,
         }
     }
@@ -168,6 +179,29 @@ impl ReplayDebugger {
 
     pub fn is_finished(&self) -> bool {
         self.finished
+    }
+
+    pub fn mouse_position(&self) -> (f32, f32) {
+        self.mouse_position
+    }
+
+    /// Rendering polls physical input even while replay simulation is paused. Restore replay-held
+    /// states after that poll so the next simulation update sees the recorded input, not the
+    /// developer's keyboard and mouse state.
+    pub fn restore_held_input(&self) {
+        for (key, held) in self.held_keys.iter().enumerate() {
+            if *held {
+                play_raw_event(INPUT_KEY_DOWN, key as i32);
+            }
+        }
+        for (button, held) in self.held_mouse_buttons.iter().enumerate() {
+            let event_type = if *held {
+                INPUT_MOUSE_BUTTON_DOWN
+            } else {
+                INPUT_MOUSE_BUTTON_UP
+            };
+            play_raw_event(event_type, button as i32);
+        }
     }
 
     pub fn step_frame(&mut self) {
@@ -200,6 +234,32 @@ impl ReplayDebugger {
         }
     }
 
+    pub fn step_frame_from_ui(&mut self) {
+        self.step_frame();
+        self.wait_for_ui_mouse_release();
+    }
+
+    pub fn step_event_from_ui(&mut self) {
+        self.step_event();
+        self.wait_for_ui_mouse_release();
+    }
+
+    pub fn step_mouse_stroke_from_ui(&mut self) {
+        self.step_mouse_stroke();
+        self.wait_for_ui_mouse_release();
+    }
+
+    pub fn toggle_continue_from_ui(&mut self) {
+        self.toggle_continue();
+        self.wait_for_ui_mouse_release();
+    }
+
+    fn wait_for_ui_mouse_release(&mut self) {
+        if self.step.is_some() {
+            self.waiting_for_ui_mouse_release = true;
+        }
+    }
+
     pub fn status(&self, state: &State, events: &[AutomationEvent]) -> String {
         if self.finished {
             return format!("Replay finished ({} events)", events.len());
@@ -227,14 +287,40 @@ impl ReplayDebugger {
     }
 
     fn observe_event(&mut self, event: &AutomationEvent) {
-        if event.params()[0] == MOUSE_BUTTON_LEFT {
-            if event.get_type() == INPUT_MOUSE_BUTTON_DOWN {
-                self.left_mouse_down = true;
-            } else if event.get_type() == INPUT_MOUSE_BUTTON_UP {
-                self.left_mouse_down = false;
+        self.observe_input(event.get_type(), event.params());
+    }
+
+    fn observe_input(&mut self, event_type: u32, params: [i32; 4]) {
+        let input = params[0];
+        match event_type {
+            INPUT_KEY_UP | INPUT_KEY_DOWN if input >= 0 => {
+                if let Some(held) = self.held_keys.get_mut(input as usize) {
+                    *held = event_type == INPUT_KEY_DOWN;
+                }
             }
+            INPUT_MOUSE_BUTTON_UP | INPUT_MOUSE_BUTTON_DOWN if input >= 0 => {
+                if let Some(held) = self.held_mouse_buttons.get_mut(input as usize) {
+                    *held = event_type == INPUT_MOUSE_BUTTON_DOWN;
+                }
+                if input == MOUSE_BUTTON_LEFT {
+                    self.left_mouse_down = event_type == INPUT_MOUSE_BUTTON_DOWN;
+                }
+            }
+            INPUT_MOUSE_POSITION => {
+                self.mouse_position = (input as f32, params[1] as f32);
+            }
+            _ => {}
         }
     }
+}
+
+fn play_raw_event(event_type: u32, input: i32) {
+    let event = ffi::AutomationEvent {
+        frame: 0,
+        type_: event_type,
+        params: [input, 0, 0, 0],
+    };
+    unsafe { ffi::PlayAutomationEvent(event) };
 }
 
 /// Schedule debugger events after rendering. They are consumed by exactly one application update
@@ -242,6 +328,7 @@ impl ReplayDebugger {
 pub fn debug_replay_after_frame(
     debugger: &mut ReplayDebugger,
     did_simulate: bool,
+    ui_mouse_button_down: bool,
     state: &mut State,
     test_options: &Option<TestSettings>,
     events: &[AutomationEvent],
@@ -262,6 +349,15 @@ pub fn debug_replay_after_frame(
     }
 
     if debugger.finished || debugger.simulation_needed {
+        return false;
+    }
+
+    if debugger.waiting_for_ui_mouse_release {
+        if !ui_mouse_button_down {
+            // Do not schedule on the release frame. Waiting for the next render-only frame keeps
+            // the UI click out of Raylib's input state when replay simulation resumes.
+            debugger.waiting_for_ui_mouse_release = false;
+        }
         return false;
     }
 
@@ -328,4 +424,63 @@ pub fn debug_replay_after_frame(
         debugger.pause_after_simulation = true;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        debug_replay_after_frame, ReplayDebugger, INPUT_KEY_DOWN, INPUT_KEY_UP,
+        INPUT_MOUSE_BUTTON_DOWN, INPUT_MOUSE_BUTTON_UP, INPUT_MOUSE_POSITION,
+    };
+    use crate::state::State;
+
+    #[test]
+    fn ui_steps_wait_for_mouse_release_and_a_clear_frame() {
+        let mut debugger = ReplayDebugger::new();
+        let mut state = State::default();
+        let events = vec![];
+
+        debugger.step_frame_from_ui();
+        debug_replay_after_frame(&mut debugger, false, true, &mut state, &None, &events);
+        assert!(!debugger.should_simulate());
+
+        debug_replay_after_frame(&mut debugger, false, false, &mut state, &None, &events);
+        assert!(!debugger.should_simulate());
+
+        debug_replay_after_frame(&mut debugger, false, false, &mut state, &None, &events);
+        assert!(debugger.should_simulate());
+    }
+
+    #[test]
+    fn recorded_input_state_survives_paused_render_frames() {
+        let mut debugger = ReplayDebugger::new();
+
+        debugger.observe_input(INPUT_MOUSE_POSITION, [123, 456, 0, 0]);
+        debugger.observe_input(INPUT_MOUSE_BUTTON_DOWN, [0, 0, 0, 0]);
+        debugger.observe_input(INPUT_KEY_DOWN, [65, 0, 0, 0]);
+
+        assert_eq!(debugger.mouse_position(), (123.0, 456.0));
+        assert!(debugger.left_mouse_down);
+        assert!(debugger.held_mouse_buttons[0]);
+        assert!(debugger.held_keys[65]);
+
+        debugger.observe_input(INPUT_MOUSE_BUTTON_UP, [0, 0, 0, 0]);
+        debugger.observe_input(INPUT_KEY_UP, [65, 0, 0, 0]);
+
+        assert!(!debugger.left_mouse_down);
+        assert!(!debugger.held_mouse_buttons[0]);
+        assert!(!debugger.held_keys[65]);
+    }
+
+    #[test]
+    fn keyboard_steps_schedule_without_ui_mouse_delay() {
+        let mut debugger = ReplayDebugger::new();
+        let mut state = State::default();
+        let events = vec![];
+
+        debugger.step_frame();
+        debug_replay_after_frame(&mut debugger, false, false, &mut state, &None, &events);
+
+        assert!(debugger.should_simulate());
+    }
 }
