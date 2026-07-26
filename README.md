@@ -108,5 +108,16 @@ persistence-format changes do not invalidate replay tests.
 Raylib does not record typed characters. Replay files can use draw-app event type `24`, with a
 Unicode code point in the first parameter, to replay text input deterministically.
 
+To inspect a replay interactively, run it in debug mode:
+
+```sh
+cargo run -- test --replay-path tests/draw_with_color_change/draw_with_color_change.rae --debug-replay
+```
+
+The drawing window displays the result while the terminal accepts `f` to step one recorded frame,
+`e` to step one event, `s` to run through one complete left-mouse stroke, `c` to continue, and `q`
+to quit. A stroke step also completes a stroke that was partially advanced with frame or event
+steps.
+
 Saving and loading are covered separately by a Rust round-trip unit test in
 `src/persistence.rs`.

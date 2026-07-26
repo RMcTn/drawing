@@ -2,7 +2,9 @@ use crate::gui::{
     debug_draw_center_crosshair, draw_color_dropper_icon, draw_color_dropper_preview, draw_info_ui,
     draw_keymap, is_clicking_gui,
 };
-use crate::replay::{load_replay, play_replay, replay_inputs};
+use crate::replay::{
+    debug_replay_after_frame, load_replay, play_replay, replay_inputs, ReplayDebugger,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use log::{debug, error};
 use raylib::prelude::{Vector2, *};
@@ -34,6 +36,7 @@ pub struct TestSettings {
     pub save_after_replay: bool,
     pub save_path: Option<PathBuf>,
     pub snapshot_path: Option<PathBuf>,
+    pub debug_replay: bool,
     pub quit_after_replay: bool,
 }
 
@@ -49,6 +52,11 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         .resizable()
         .title("Window")
         .build();
+
+    let mut replay_debugger = test_options
+        .as_ref()
+        .filter(|options| options.debug_replay)
+        .map(|_| ReplayDebugger::new());
 
     let mut automation_events_list = rl.load_automation_event_list(None);
     rl.set_automation_event_list(&mut automation_events_list);
@@ -594,7 +602,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             screen_height as f32 / state.camera.zoom,
         );
 
-        if state.is_playing_inputs {
+        if state.is_playing_inputs && replay_debugger.is_none() {
             let should_quit = replay_inputs(&mut state, &test_options, &automation_events);
             if should_quit {
                 return;
@@ -847,6 +855,12 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         }
         for (_, was_pressed) in mouse_buttons_pressed_this_frame.iter_mut() {
             *was_pressed = false;
+        }
+
+        if let Some(debugger) = replay_debugger.as_mut() {
+            if debug_replay_after_frame(debugger, &mut state, &test_options, &automation_events) {
+                return;
+            }
         }
     }
 }

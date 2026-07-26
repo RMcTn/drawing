@@ -29,6 +29,9 @@ enum Commands {
         save_path: Option<PathBuf>,
         #[arg(long)]
         snapshot_path: Option<PathBuf>,
+        /// Pause replay and accept frame/event/stroke stepping commands in the terminal.
+        #[arg(long)]
+        debug_replay: bool,
         #[arg(long)]
         replay_path: PathBuf,
     },
@@ -49,6 +52,7 @@ fn main() {
                 save_path,
                 replay_path,
                 snapshot_path,
+                debug_replay,
                 quit_after_replay,
             } => app::run(
                 Some(replay_path),
@@ -56,6 +60,7 @@ fn main() {
                     save_after_replay,
                     save_path,
                     snapshot_path,
+                    debug_replay,
                     quit_after_replay,
                 }),
             ),
