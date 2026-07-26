@@ -31,10 +31,17 @@ for expected in tests/*/expected-state.json; do
     : >"$actual"
     : >"$log"
 
-    if ! cargo run --quiet -- test \
+    set -- test \
         --replay-path "$replay" \
         --snapshot-path "$actual" \
-        --quit-after-replay >"$log" 2>&1; then
+        --quit-after-replay
+    if [ -f "$test_dir/clipboard.png" ]; then
+        set -- "$@" --clipboard-image-path "$test_dir/clipboard.png"
+    elif [ -f "$test_dir/clipboard.txt" ]; then
+        set -- "$@" --clipboard-text-path "$test_dir/clipboard.txt"
+    fi
+
+    if ! cargo run --quiet -- "$@" >"$log" 2>&1; then
         cat "$log"
         echo "FAIL - replay failed: $test_name"
         record_failure "$test_name: replay failed"

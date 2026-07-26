@@ -1,9 +1,10 @@
+use std::borrow::Cow;
 use std::cmp;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::Path;
 
-use arboard::Clipboard;
+use arboard::{Clipboard, ImageData};
 use image::{DynamicImage, ImageFormat, RgbaImage};
 
 use log::{debug, error, info};
@@ -241,6 +242,93 @@ pub fn get_char_pressed() -> Option<u32> {
     }
 
     return Some(char_pressed as u32);
+}
+
+enum SavedClipboardContents {
+    Image {
+        width: usize,
+        height: usize,
+        bytes: Vec<u8>,
+    },
+    Text(String),
+    Empty,
+}
+
+/// Keeps deterministic clipboard setup scoped to a replay test and restores the user's clipboard
+/// once the application exits.
+pub struct TestClipboardGuard {
+    clipboard: Clipboard,
+    previous: SavedClipboardContents,
+}
+
+impl Drop for TestClipboardGuard {
+    fn drop(&mut self) {
+        let result = match &self.previous {
+            SavedClipboardContents::Image {
+                width,
+                height,
+                bytes,
+            } => self.clipboard.set_image(ImageData {
+                width: *width,
+                height: *height,
+                bytes: Cow::Borrowed(bytes),
+            }),
+            SavedClipboardContents::Text(text) => self.clipboard.set_text(text),
+            SavedClipboardContents::Empty => self.clipboard.clear(),
+        };
+        if let Err(error) = result {
+            error!("Could not restore clipboard after replay test: {error}");
+        }
+    }
+}
+
+fn test_clipboard_guard() -> Result<TestClipboardGuard, String> {
+    let mut clipboard = Clipboard::new().map_err(|error| error.to_string())?;
+    let previous = match clipboard.get_image() {
+        Ok(image) => SavedClipboardContents::Image {
+            width: image.width,
+            height: image.height,
+            bytes: image.bytes.into_owned(),
+        },
+        Err(_) => match clipboard.get_text() {
+            Ok(text) => SavedClipboardContents::Text(text),
+            Err(_) => SavedClipboardContents::Empty,
+        },
+    };
+    Ok(TestClipboardGuard {
+        clipboard,
+        previous,
+    })
+}
+
+pub fn set_clipboard_image_for_test(path: &Path) -> Result<TestClipboardGuard, String> {
+    let mut guard = test_clipboard_guard()?;
+    let image = image::ImageReader::open(path)
+        .map_err(|error| error.to_string())?
+        .decode()
+        .map_err(|error| error.to_string())?
+        .to_rgba8();
+    let (width, height) = image.dimensions();
+    guard
+        .clipboard
+        .set_image(ImageData {
+            width: width as usize,
+            height: height as usize,
+            bytes: Cow::Owned(image.into_raw()),
+        })
+        .map_err(|error| error.to_string())?;
+
+    Ok(guard)
+}
+
+pub fn set_clipboard_text_for_test(path: &Path) -> Result<TestClipboardGuard, String> {
+    let mut guard = test_clipboard_guard()?;
+    let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+    guard
+        .clipboard
+        .set_text(text)
+        .map_err(|error| error.to_string())?;
+    Ok(guard)
 }
 
 /// Paste clipboard text into the active text object, or create a text/image renderable at `position`.

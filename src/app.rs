@@ -172,6 +172,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         .iter()
         .map(|entry| (entry.1, false))
         .collect();
+    let mut paste_was_processed = false;
 
     let mut mouse_buttons_pressed_this_frame = HashMap::from([
         (MouseButton::MOUSE_BUTTON_LEFT, false),
@@ -284,11 +285,13 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                 }
             }
 
-            let paste_pressed = rl.is_key_pressed(KeyboardKey::KEY_V)
+            let paste_is_down = rl.is_key_down(KeyboardKey::KEY_V)
                 && (rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL)
                     || rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL)
                     || rl.is_key_down(KeyboardKey::KEY_LEFT_SUPER)
                     || rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER));
+            let paste_pressed = paste_is_down && !paste_was_processed;
+            paste_was_processed = paste_is_down;
             if paste_pressed {
                 let text_target = if state.mode == Mode::TypingText {
                     working_text.as_mut()

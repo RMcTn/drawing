@@ -102,8 +102,10 @@ Run all unit tests and the input replay regression test with:
 
 Each replay test lives in `tests/<name>/`, with `<name>.rae` as its input recording and
 `expected-state.json` as its expected observable drawing state. `run-test.sh` discovers all such
-directories. It intentionally does not compare application save files, so unrelated
-persistence-format changes do not invalidate replay tests.
+directories. If the directory contains `clipboard.png` or `clipboard.txt`, the runner places that
+image or text on the system clipboard for the replay and restores the user's previous clipboard
+contents afterward. Replay tests intentionally do not compare application save files, so unrelated
+persistence-format changes do not invalidate them.
 
 Raylib does not record typed characters. Replay files can use draw-app event type `24`, with a
 Unicode code point in the first parameter, to replay text input deterministically.
