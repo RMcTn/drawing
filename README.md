@@ -114,10 +114,11 @@ To inspect a replay interactively, run it in debug mode:
 cargo run -- test --replay-path tests/draw_with_color_change/draw_with_color_change.rae --debug-replay
 ```
 
-The drawing window displays the result while the terminal accepts `f` to step one recorded frame,
-`e` to step one event, `s` to run through one complete left-mouse stroke, `c` to continue, and `q`
-to quit. A stroke step also completes a stroke that was partially advanced with frame or event
-steps.
+The drawing window remains responsive and provides buttons for stepping one recorded frame, one
+event, or one complete left-mouse stroke, and for continuing playback. The same controls are
+available as `F6`, `F7`, `F8`, and `F5`; press `F5` again to pause continuous playback. A stroke
+step also completes a stroke that was partially advanced with frame or event steps. While paused,
+rendering continues but application input simulation and regular app controls do not mutate state.
 
 Saving and loading are covered separately by a Rust round-trip unit test in
 `src/persistence.rs`.

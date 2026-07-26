@@ -1,7 +1,4 @@
-use std::{
-    io::{self, Write},
-    path::Path,
-};
+use std::path::Path;
 
 use log::{debug, error, info};
 use raylib::{
@@ -82,7 +79,6 @@ fn finish_replay(state: &mut State, test_options: &Option<TestSettings>) -> bool
                 .save_path
                 .as_deref()
                 .expect("clap requires --save-path with --save-after-replay");
-            info!("Attempting to save since replay has finished");
             match persistence::save(state, save_path) {
                 Ok(_) => info!("Successfully saved to {}", save_path.display()),
                 Err(e) => error!("Failed to save to {}: {}", save_path.display(), e),
@@ -90,10 +86,6 @@ fn finish_replay(state: &mut State, test_options: &Option<TestSettings>) -> bool
         }
 
         if let Some(snapshot_path) = &test_options.snapshot_path {
-            info!(
-                "Writing replay state snapshot to {}",
-                snapshot_path.display()
-            );
             if let Err(e) = test_snapshot::save(state, snapshot_path) {
                 error!(
                     "Failed to write replay state snapshot to {}: {}",
@@ -104,7 +96,6 @@ fn finish_replay(state: &mut State, test_options: &Option<TestSettings>) -> bool
         }
 
         if test_options.quit_after_replay {
-            info!("Quitting - Quit after replay is enabled");
             return true;
         }
     }
@@ -122,7 +113,6 @@ pub fn replay_inputs(
     {
         let event = &automation_events[state.current_play_frame];
         play_event(state, event);
-
         if state.current_play_frame == automation_events.len() {
             return finish_replay(state, test_options);
         }
@@ -131,7 +121,7 @@ pub fn replay_inputs(
     false
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum DebugStep {
     Frame,
     Event,
@@ -139,11 +129,12 @@ enum DebugStep {
     Continue,
 }
 
-/// Terminal-driven replay debugger. The terminal blocks between steps, so the drawing window can
-/// display the completed step without repeatedly processing a held automation input.
+/// Replay scheduling state for the in-window debugger. Rendering continues while this is paused;
+/// `simulation_needed` permits exactly one application update for each scheduled replay frame.
 pub struct ReplayDebugger {
     step: Option<DebugStep>,
-    waiting_for_step_result: bool,
+    simulation_needed: bool,
+    pause_after_simulation: bool,
     mouse_stroke_started: bool,
     left_mouse_down: bool,
     pending_finish: bool,
@@ -154,7 +145,8 @@ impl ReplayDebugger {
     pub fn new() -> Self {
         Self {
             step: None,
-            waiting_for_step_result: false,
+            simulation_needed: false,
+            pause_after_simulation: false,
             mouse_stroke_started: false,
             left_mouse_down: false,
             pending_finish: false,
@@ -162,53 +154,75 @@ impl ReplayDebugger {
         }
     }
 
-    fn prompt(&mut self, state: &State, events: &[AutomationEvent]) -> bool {
-        let next = events.get(state.current_play_frame);
+    pub fn should_simulate(&self) -> bool {
+        self.simulation_needed
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.step == Some(DebugStep::Continue)
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.step.is_none() && !self.finished
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.finished
+    }
+
+    pub fn step_frame(&mut self) {
+        if !self.finished && self.step.is_none() {
+            self.step = Some(DebugStep::Frame);
+        }
+    }
+
+    pub fn step_event(&mut self) {
+        if !self.finished && self.step.is_none() {
+            self.step = Some(DebugStep::Event);
+        }
+    }
+
+    pub fn step_mouse_stroke(&mut self) {
+        if !self.finished && self.step.is_none() {
+            self.step = Some(DebugStep::MouseStroke);
+            self.mouse_stroke_started = self.left_mouse_down;
+        }
+    }
+
+    pub fn toggle_continue(&mut self) {
         if self.finished {
-            println!("\nReplay finished: {} events", events.len());
-        } else if let Some(event) = next {
-            println!(
-                "\nReplay paused: frame {}, event {}/{} (recorded frame {}, type {}, params {:?})",
+            return;
+        }
+        if self.step == Some(DebugStep::Continue) {
+            self.step = None;
+        } else if self.step.is_none() {
+            self.step = Some(DebugStep::Continue);
+        }
+    }
+
+    pub fn status(&self, state: &State, events: &[AutomationEvent]) -> String {
+        if self.finished {
+            return format!("Replay finished ({} events)", events.len());
+        }
+        let mode = match self.step {
+            None => "Paused",
+            Some(DebugStep::Frame) => "Stepping frame",
+            Some(DebugStep::Event) => "Stepping event",
+            Some(DebugStep::MouseStroke) => "Stepping mouse stroke",
+            Some(DebugStep::Continue) => "Running",
+        };
+        match events.get(state.current_play_frame) {
+            Some(event) => format!(
+                "{} | frame {} | event {}/{} | next: frame {}, type {}, {:?}",
+                mode,
                 state.play_frame_counter,
                 state.current_play_frame + 1,
                 events.len(),
                 event.frame(),
                 event.get_type(),
-                event.params(),
-            );
-        }
-        print!("[f]rame  [e]vent  mouse [s]troke  [c]ontinue  [q]uit > ");
-        let _ = io::stdout().flush();
-
-        loop {
-            let mut input = String::new();
-            if io::stdin().read_line(&mut input).is_err() {
-                return true;
-            }
-            match input.trim().to_ascii_lowercase().as_str() {
-                "f" | "frame" if !self.finished => {
-                    self.step = Some(DebugStep::Frame);
-                    return false;
-                }
-                "e" | "event" if !self.finished => {
-                    self.step = Some(DebugStep::Event);
-                    return false;
-                }
-                "s" | "stroke" if !self.finished => {
-                    self.step = Some(DebugStep::MouseStroke);
-                    self.mouse_stroke_started = self.left_mouse_down;
-                    return false;
-                }
-                "c" | "continue" if !self.finished => {
-                    self.step = Some(DebugStep::Continue);
-                    return false;
-                }
-                "q" | "quit" => return true,
-                _ => {
-                    print!("Enter f, e, s, c, or q > ");
-                    let _ = io::stdout().flush();
-                }
-            }
+                event.params()
+            ),
+            None => format!("{} | event {}/{}", mode, events.len(), events.len()),
         }
     }
 
@@ -223,18 +237,21 @@ impl ReplayDebugger {
     }
 }
 
-/// Called after an application frame has been rendered. Events scheduled here are consumed by the
-/// next application frame; when a step completes, that resulting frame is rendered before the next
-/// terminal prompt appears.
+/// Schedule debugger events after rendering. They are consumed by exactly one application update
+/// on the next window frame. `did_simulate` distinguishes that update from paused render-only frames.
 pub fn debug_replay_after_frame(
     debugger: &mut ReplayDebugger,
+    did_simulate: bool,
     state: &mut State,
     test_options: &Option<TestSettings>,
     events: &[AutomationEvent],
 ) -> bool {
-    if debugger.waiting_for_step_result {
-        debugger.waiting_for_step_result = false;
-        debugger.step = None;
+    if did_simulate {
+        debugger.simulation_needed = false;
+        if debugger.pause_after_simulation {
+            debugger.pause_after_simulation = false;
+            debugger.step = None;
+        }
         if debugger.pending_finish {
             debugger.pending_finish = false;
             debugger.finished = true;
@@ -244,12 +261,8 @@ pub fn debug_replay_after_frame(
         }
     }
 
-    if debugger.finished {
-        return debugger.prompt(state, events);
-    }
-
-    if debugger.step.is_none() && debugger.prompt(state, events) {
-        return true;
+    if debugger.finished || debugger.simulation_needed {
+        return false;
     }
 
     let Some(step) = debugger.step else {
@@ -266,7 +279,7 @@ pub fn debug_replay_after_frame(
                 play_event(state, event);
             }
             state.play_frame_counter += 1;
-            debugger.waiting_for_step_result = true;
+            debugger.pause_after_simulation = true;
         }
         DebugStep::Event => {
             if let Some(event) = events.get(state.current_play_frame) {
@@ -280,7 +293,7 @@ pub fn debug_replay_after_frame(
                 {
                     state.play_frame_counter += 1;
                 }
-                debugger.waiting_for_step_result = true;
+                debugger.pause_after_simulation = true;
             }
         }
         DebugStep::MouseStroke | DebugStep::Continue => {
@@ -288,36 +301,31 @@ pub fn debug_replay_after_frame(
                 && events[state.current_play_frame].frame() as usize == state.play_frame_counter
             {
                 let event = &events[state.current_play_frame];
-                if step_matches_mouse_stroke(step)
+                if step == DebugStep::MouseStroke
                     && event.get_type() == INPUT_MOUSE_BUTTON_DOWN
                     && event.params()[0] == MOUSE_BUTTON_LEFT
                 {
                     debugger.mouse_stroke_started = true;
                 }
-                let stroke_ended = step_matches_mouse_stroke(step)
+                let stroke_ended = step == DebugStep::MouseStroke
                     && debugger.mouse_stroke_started
                     && event.get_type() == INPUT_MOUSE_BUTTON_UP
                     && event.params()[0] == MOUSE_BUTTON_LEFT;
                 debugger.observe_event(event);
                 play_event(state, event);
                 if stroke_ended {
-                    debugger.waiting_for_step_result = true;
+                    debugger.pause_after_simulation = true;
                 }
             }
             state.play_frame_counter += 1;
         }
     }
 
+    // Even an empty recorded frame needs one simulation update: held inputs are meaningful.
+    debugger.simulation_needed = true;
     if state.current_play_frame == events.len() {
-        // Wait one rendered application frame so the last scheduled event is observed before save,
-        // snapshot, or the final debugger prompt.
         debugger.pending_finish = true;
-        debugger.waiting_for_step_result = true;
+        debugger.pause_after_simulation = true;
     }
-
     false
-}
-
-fn step_matches_mouse_stroke(step: DebugStep) -> bool {
-    matches!(step, DebugStep::MouseStroke)
 }

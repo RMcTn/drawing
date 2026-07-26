@@ -7,7 +7,10 @@ use crate::replay::{
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use log::{debug, error};
-use raylib::prelude::{Vector2, *};
+use raylib::{
+    automation::AutomationEvent,
+    prelude::{Vector2, *},
+};
 use serde::{Deserialize, Serialize};
 use slotmap::{new_key_type, SlotMap};
 use std::{
@@ -179,6 +182,21 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
     while !rl.window_should_close() {
         let delta_time = rl.get_frame_time();
         let current_fps = rl.get_fps();
+
+        if let Some(debugger) = replay_debugger.as_mut() {
+            if rl.is_key_pressed(KeyboardKey::KEY_F5) {
+                debugger.toggle_continue();
+            } else if rl.is_key_pressed(KeyboardKey::KEY_F6) {
+                debugger.step_frame();
+            } else if rl.is_key_pressed(KeyboardKey::KEY_F7) {
+                debugger.step_event();
+            } else if rl.is_key_pressed(KeyboardKey::KEY_F8) {
+                debugger.step_mouse_stroke();
+            }
+        }
+        let did_simulate = replay_debugger
+            .as_ref()
+            .is_none_or(ReplayDebugger::should_simulate);
         // TODO: Hotkey configuration
         // TODO(reece): Have zoom follow the cursor i.e zoom into where the cursor is rather than
         // "top left corner"
@@ -190,15 +208,13 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         // TODO(reece): Optimize this so we're not smashing the cpu/gpu whilst doing nothing (only
         // update on user input?)
 
-        time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
-
         let start_time = Instant::now();
         screen_width = rl.get_screen_width();
         screen_height = rl.get_screen_height();
         state.camera.offset = rvec2(screen_width / 2, screen_height / 2);
 
-        state.mouse_pos = rl.get_mouse_position();
-        let mouse_drawing_pos = rl.get_screen_to_world2D(state.mouse_pos, state.camera);
+        let live_mouse_pos = rl.get_mouse_position();
+        let mouse_drawing_pos = rl.get_screen_to_world2D(live_mouse_pos, state.camera);
 
         let keymap_panel_padding_percent = 0.10;
         let keymap_panel_padding_x = screen_width as f32 * keymap_panel_padding_percent;
@@ -210,388 +226,400 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             screen_height as f32 - (keymap_panel_padding_y * 2.0),
         );
 
-        let mut color_picker_closed_this_frame = false;
-
         // NOTE: Make sure any icons we don't want interfering with this color have a transparent
         // pixel at the mouse pos (or draw it away from the mouse pos a bit)
         let pixel_color_at_mouse_pos = rl.load_image_from_screen(&rl_thread).get_color(
-            state.mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as i32,
-            state.mouse_pos.y.clamp(0.0, (screen_height - 1) as f32) as i32,
+            live_mouse_pos.x.clamp(0.0, (screen_width - 1) as f32) as i32,
+            live_mouse_pos.y.clamp(0.0, (screen_height - 1) as f32) as i32,
         );
 
-        // color picker activate check
-        if (state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing())
-            && is_mouse_button_down(
-                &mut rl,
-                MouseButton::MOUSE_BUTTON_RIGHT,
-                &mut mouse_buttons_pressed_this_frame,
-            )
-        {
-            debug!("Making colour picker active");
-            let picker_width = 100;
-            let picker_height = 100;
-            color_picker_info = Some(GuiColorPickerInfo {
-                initiation_pos: state.mouse_pos,
-                bounds: rrect(
-                    state.mouse_pos.x - (picker_width as f32 / 2.0),
-                    state.mouse_pos.y - (picker_height as f32 / 2.0),
-                    picker_width,
-                    picker_height,
-                ),
-                picker_slider_x_padding: 30.0,
-            });
-        }
+        if did_simulate {
+            time_since_last_text_deletion += Duration::from_secs_f32(delta_time);
+            state.mouse_pos = live_mouse_pos;
 
-        // color picker closer check
-        if let Some(picker_info) = &color_picker_info {
-            if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider())
+            let mut color_picker_closed_this_frame = false;
+
+            // color picker activate check
+            if (state.mode == Mode::UsingTool(Tool::Brush) || state.using_text_tool_or_typing())
                 && is_mouse_button_down(
                     &mut rl,
-                    MouseButton::MOUSE_BUTTON_LEFT,
+                    MouseButton::MOUSE_BUTTON_RIGHT,
                     &mut mouse_buttons_pressed_this_frame,
                 )
             {
-                close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
+                debug!("Making colour picker active");
+                let picker_width = 100;
+                let picker_height = 100;
+                color_picker_info = Some(GuiColorPickerInfo {
+                    initiation_pos: state.mouse_pos,
+                    bounds: rrect(
+                        state.mouse_pos.x - (picker_width as f32 / 2.0),
+                        state.mouse_pos.y - (picker_height as f32 / 2.0),
+                        picker_width,
+                        picker_height,
+                    ),
+                    picker_slider_x_padding: 30.0,
+                });
             }
-        }
 
-        let paste_pressed = rl.is_key_pressed(KeyboardKey::KEY_V)
-            && (rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL)
-                || rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL)
-                || rl.is_key_down(KeyboardKey::KEY_LEFT_SUPER)
-                || rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER));
-        if paste_pressed {
-            let text_target = if state.mode == Mode::TypingText {
-                working_text.as_mut()
-            } else {
-                None
-            };
-            paste_clipboard(&mut state, mouse_drawing_pos, text_target);
-        }
-
-        let is_mouse_over_location_list =
-            show_location_gui && LOCATION_LIST_BOUNDS.check_collision_point_rec(state.mouse_pos);
-
-        match state.mode {
-            Mode::UsingTool(tool) => match tool {
-                Tool::Brush => {
-                    // TODO: FIXME: Quite easy to accidentally draw when coming out of background
-                    // color picker - Maybe a little delay before drawing after clicking off the
-                    // picker?
-
-                    if is_mouse_button_down(
+            // color picker closer check
+            if let Some(picker_info) = &color_picker_info {
+                if !is_clicking_gui(state.mouse_pos, picker_info.bounds_with_slider())
+                    && is_mouse_button_down(
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_mouse_over_location_list
-                        && !is_color_picker_active(&color_picker_info)
-                    {
-                        if brush.brush_type == BrushType::Deleting {
-                            let strokes_to_delete =
-                                state.strokes_within_point(mouse_drawing_pos, brush.brush_size);
-                            state.delete_strokes(strokes_to_delete);
-                        } else {
-                            // Drawing
-                            if !is_drawing {
-                                working_stroke =
-                                    Stroke::new(state.foreground_color.0, brush.brush_size);
-                                is_drawing = true;
-                            }
-
-                            let point = Point {
-                                x: mouse_drawing_pos.x,
-                                y: mouse_drawing_pos.y,
-                            };
-                            working_stroke.points.push(point);
-                        }
-                    }
-                    if was_mouse_button_released(
-                        &mut rl,
-                        MouseButton::MOUSE_BUTTON_LEFT,
-                        &mouse_buttons_pressed_last_frame,
-                    ) {
-                        dbg!("Left mouse release");
-                        // Finished drawing
-                        // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
-                        // the brush stroke unless we change back to brush mode
-                        if is_drawing {
-                            let thing = Thing {
-                                kind: Renderable::Stroke(working_stroke),
-                            };
-                            state.add_thing_with_undo(thing);
-                            working_stroke =
-                                Stroke::new(state.foreground_color.0, brush.brush_size);
-                        }
-                        is_drawing = false;
-                    }
-                }
-                Tool::Text => {
-                    if is_mouse_button_down(
-                        &mut rl,
-                        MouseButton::MOUSE_BUTTON_LEFT,
-                        &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_mouse_over_location_list
-                        && !is_color_picker_active(&color_picker_info)
-                        && !color_picker_closed_this_frame
-                    {
-                        debug!("Hit left click on text tool");
-                        // Start text
-                        if working_text.is_none() {
-                            working_text = Some(Text {
-                                content: "".to_string(),
-                                position: Some(mouse_drawing_pos),
-                                size: state.text_size,
-                                color: state.text_color,
-                            });
-                        }
-                        state.mode = Mode::TypingText;
-                    }
-                }
-                Tool::ColorPicker => {
-                    if is_mouse_button_down(
-                        &mut rl,
-                        MouseButton::MOUSE_BUTTON_LEFT,
-                        &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_mouse_over_location_list
-                    {
-                        // NOTE: This literally is whatever color is at the screen. This includes
-                        // GUI elements! If it gets annoying enough, it can be changed, but this
-                        // was simpler
-                        state.foreground_color.0 = pixel_color_at_mouse_pos;
-
-                        // TODO: Text colour picking as well
-                        state.mode = Mode::UsingTool(Tool::Brush);
-                    }
-                }
-                Tool::Selection => {
-                    if is_mouse_button_down(
-                        &mut rl,
-                        MouseButton::MOUSE_BUTTON_LEFT,
-                        &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_mouse_over_location_list
-                    {
-                        if let Some(drag_box) = state.mouse_drag_box {
-                            let drag_box = BoundingBox2D {
-                                min: drag_box.min,
-                                max: rvec2(mouse_drawing_pos.x, mouse_drawing_pos.y),
-                            };
-                            state.mouse_drag_box = Some(drag_box);
-                        } else {
-                            let drag_box = BoundingBox2D {
-                                min: rvec2(mouse_drawing_pos.x, mouse_drawing_pos.y),
-                                max: rvec2(mouse_drawing_pos.x, mouse_drawing_pos.y),
-                            };
-                            state.mouse_drag_box = Some(drag_box);
-                        }
-                    } else {
-                        let mut things_in_selection = vec![];
-                        // Gather everything that was in the drag box
-                        if let Some(drag_box) = state.mouse_drag_box {
-                            for (thing_key, thing) in &state.things {
-                                if let Some(bounding_box) = thing.bounding_box(&font) {
-                                    if bounding_box.rect().check_collision_recs(&drag_box.rect()) {
-                                        things_in_selection.push(thing_key);
-                                    }
-                                }
-                            }
-                            if !things_in_selection.is_empty() {
-                                state.mode = Mode::UsingTool(Tool::Move);
-                                state.selected_things = things_in_selection;
-                            } else {
-                                state.selected_things.clear();
-                            };
-                        }
-                        state.mouse_drag_box = None;
-                    }
-                }
-                Tool::Move => {
-                    if is_mouse_button_down(
-                        &mut rl,
-                        MouseButton::MOUSE_BUTTON_LEFT,
-                        &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_mouse_over_location_list
-                    {
-                        if let Some(resize) = working_resize.as_mut() {
-                            let scale = resize_scale(resize, mouse_drawing_pos);
-                            state.preview_resize(&mut resize.changes, resize.anchor, scale);
-                        } else if let Some(working_move) = working_move.as_mut() {
-                            working_move.1 = mouse_drawing_pos;
-                        } else {
-                            let resize_bounds = resizable_selection_bounds(&state, &font)
-                                .map(|bounds| resize_handle(bounds, state.camera.zoom));
-                            if resize_bounds.is_some_and(|handle| {
-                                handle.check_collision_point_rec(mouse_drawing_pos)
-                            }) {
-                                if let Some(bounds) = resizable_selection_bounds(&state, &font) {
-                                    working_resize = Some(WorkingResize {
-                                        anchor: bounds.min,
-                                        diagonal: mouse_drawing_pos - bounds.min,
-                                        changes: state
-                                            .capture_resize_changes(&state.selected_things),
-                                    });
-                                }
-                            } else {
-                                working_move = Some((mouse_drawing_pos, mouse_drawing_pos));
-                            }
-                        }
-                    }
-
-                    if was_mouse_button_released(
-                        &mut rl,
-                        MouseButton::MOUSE_BUTTON_LEFT,
-                        &mouse_buttons_pressed_last_frame,
-                    ) {
-                        if let Some(mut resize) = working_resize.take() {
-                            let scale = resize_scale(&resize, mouse_drawing_pos);
-                            state.preview_resize(&mut resize.changes, resize.anchor, scale);
-                            state.commit_resize_with_undo(resize.changes);
-                        } else if let Some(working_move) = working_move {
-                            let move_diff = working_move.1 - working_move.0;
-
-                            if move_diff.x.abs() > 0.0 || move_diff.y.abs() > 0.0 {
-                                state.move_things_with_undo(
-                                    &state.selected_things.clone(),
-                                    move_diff,
-                                );
-                            }
-                        }
-                        working_move = None;
-                        state.selected_things.clear();
-                        state.mode = Mode::UsingTool(Tool::Brush);
-                    }
-                }
-            },
-            Mode::PickingBackgroundColor(color_picker) => {
-                if is_mouse_button_pressed(
-                    &mut rl,
-                    MouseButton::MOUSE_BUTTON_LEFT,
-                    &mut mouse_buttons_pressed_this_frame,
-                ) && !is_clicking_gui(state.mouse_pos, color_picker.bounds_with_slider())
+                    )
                 {
-                    state.mode = Mode::UsingTool(Tool::Brush);
-                }
-            }
-            Mode::TypingText => {
-                if rl.is_key_down(KeyboardKey::KEY_BACKSPACE)
-                    && time_since_last_text_deletion >= delay_between_text_deletions
-                {
-                    if let Some(text) = working_text.as_mut() {
-                        let _removed_char = text.content.pop();
-                    }
-                    time_since_last_text_deletion = Duration::ZERO;
-                }
-
-                if rl.is_key_down(KeyboardKey::KEY_ENTER) {
-                    dbg!("Exiting text tool");
-                    if let Some(mut text) = working_text {
-                        if !text.content.is_empty() {
-                            text.color = state.text_color;
-                            text.size = state.text_size;
-                            let thing = Thing {
-                                kind: Renderable::Text(text),
-                            };
-                            state.add_thing_with_undo(thing);
-                        }
-                    }
-
-                    working_text = None;
-                    state.mode = Mode::UsingTool(Tool::Brush);
                     close_color_picker(&mut color_picker_info, &mut color_picker_closed_this_frame);
                 }
+            }
 
-                let char_pressed = if paste_pressed {
-                    None
-                } else if state.is_playing_inputs && !state.replay_text_input.is_empty() {
-                    Some(state.replay_text_input.remove(0))
+            let paste_pressed = rl.is_key_pressed(KeyboardKey::KEY_V)
+                && (rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL)
+                    || rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL)
+                    || rl.is_key_down(KeyboardKey::KEY_LEFT_SUPER)
+                    || rl.is_key_down(KeyboardKey::KEY_RIGHT_SUPER));
+            if paste_pressed {
+                let text_target = if state.mode == Mode::TypingText {
+                    working_text.as_mut()
                 } else {
-                    get_char_pressed()
+                    None
                 };
+                paste_clipboard(&mut state, mouse_drawing_pos, text_target);
+            }
 
-                // TODO: FIXME: BUG: Raylib's event automation doesn't track chars pressed (probably due to
-                // platform differences). If we relied on key pressed instead, then:
-                //      - We wouldn't be able to differ between uppercase and lowercase (KEY_A
-                //      doesn't tell you if it's lower or uppercase)
-                //      - We'd need to make our own "repeat key" logic, as holding a key looks like
-                //      it only gets 1 key pressed raylib event fired off (makes sense)
+            let is_mouse_over_location_list = show_location_gui
+                && LOCATION_LIST_BOUNDS.check_collision_point_rec(state.mouse_pos);
 
-                if let Some(ch) = char_pressed {
-                    append_input_to_working_text(
-                        ch,
-                        &mut working_text,
-                        state.text_size,
-                        state.text_color,
-                    )
+            match state.mode {
+                Mode::UsingTool(tool) => match tool {
+                    Tool::Brush => {
+                        // TODO: FIXME: Quite easy to accidentally draw when coming out of background
+                        // color picker - Maybe a little delay before drawing after clicking off the
+                        // picker?
+
+                        if is_mouse_button_down(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mut mouse_buttons_pressed_this_frame,
+                        ) && !is_mouse_over_location_list
+                            && !is_color_picker_active(&color_picker_info)
+                        {
+                            if brush.brush_type == BrushType::Deleting {
+                                let strokes_to_delete =
+                                    state.strokes_within_point(mouse_drawing_pos, brush.brush_size);
+                                state.delete_strokes(strokes_to_delete);
+                            } else {
+                                // Drawing
+                                if !is_drawing {
+                                    working_stroke =
+                                        Stroke::new(state.foreground_color.0, brush.brush_size);
+                                    is_drawing = true;
+                                }
+
+                                let point = Point {
+                                    x: mouse_drawing_pos.x,
+                                    y: mouse_drawing_pos.y,
+                                };
+                                working_stroke.points.push(point);
+                            }
+                        }
+                        if was_mouse_button_released(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mouse_buttons_pressed_last_frame,
+                        ) {
+                            dbg!("Left mouse release");
+                            // Finished drawing
+                            // TODO: FIXME: Do not allow text tool if currently drawing, otherwise we won't be able to end
+                            // the brush stroke unless we change back to brush mode
+                            if is_drawing {
+                                let thing = Thing {
+                                    kind: Renderable::Stroke(working_stroke),
+                                };
+                                state.add_thing_with_undo(thing);
+                                working_stroke =
+                                    Stroke::new(state.foreground_color.0, brush.brush_size);
+                            }
+                            is_drawing = false;
+                        }
+                    }
+                    Tool::Text => {
+                        if is_mouse_button_down(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mut mouse_buttons_pressed_this_frame,
+                        ) && !is_mouse_over_location_list
+                            && !is_color_picker_active(&color_picker_info)
+                            && !color_picker_closed_this_frame
+                        {
+                            debug!("Hit left click on text tool");
+                            // Start text
+                            if working_text.is_none() {
+                                working_text = Some(Text {
+                                    content: "".to_string(),
+                                    position: Some(mouse_drawing_pos),
+                                    size: state.text_size,
+                                    color: state.text_color,
+                                });
+                            }
+                            state.mode = Mode::TypingText;
+                        }
+                    }
+                    Tool::ColorPicker => {
+                        if is_mouse_button_down(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mut mouse_buttons_pressed_this_frame,
+                        ) && !is_mouse_over_location_list
+                        {
+                            // NOTE: This literally is whatever color is at the screen. This includes
+                            // GUI elements! If it gets annoying enough, it can be changed, but this
+                            // was simpler
+                            state.foreground_color.0 = pixel_color_at_mouse_pos;
+
+                            // TODO: Text colour picking as well
+                            state.mode = Mode::UsingTool(Tool::Brush);
+                        }
+                    }
+                    Tool::Selection => {
+                        if is_mouse_button_down(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mut mouse_buttons_pressed_this_frame,
+                        ) && !is_mouse_over_location_list
+                        {
+                            if let Some(drag_box) = state.mouse_drag_box {
+                                let drag_box = BoundingBox2D {
+                                    min: drag_box.min,
+                                    max: rvec2(mouse_drawing_pos.x, mouse_drawing_pos.y),
+                                };
+                                state.mouse_drag_box = Some(drag_box);
+                            } else {
+                                let drag_box = BoundingBox2D {
+                                    min: rvec2(mouse_drawing_pos.x, mouse_drawing_pos.y),
+                                    max: rvec2(mouse_drawing_pos.x, mouse_drawing_pos.y),
+                                };
+                                state.mouse_drag_box = Some(drag_box);
+                            }
+                        } else {
+                            let mut things_in_selection = vec![];
+                            // Gather everything that was in the drag box
+                            if let Some(drag_box) = state.mouse_drag_box {
+                                for (thing_key, thing) in &state.things {
+                                    if let Some(bounding_box) = thing.bounding_box(&font) {
+                                        if bounding_box
+                                            .rect()
+                                            .check_collision_recs(&drag_box.rect())
+                                        {
+                                            things_in_selection.push(thing_key);
+                                        }
+                                    }
+                                }
+                                if !things_in_selection.is_empty() {
+                                    state.mode = Mode::UsingTool(Tool::Move);
+                                    state.selected_things = things_in_selection;
+                                } else {
+                                    state.selected_things.clear();
+                                };
+                            }
+                            state.mouse_drag_box = None;
+                        }
+                    }
+                    Tool::Move => {
+                        if is_mouse_button_down(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mut mouse_buttons_pressed_this_frame,
+                        ) && !is_mouse_over_location_list
+                        {
+                            if let Some(resize) = working_resize.as_mut() {
+                                let scale = resize_scale(resize, mouse_drawing_pos);
+                                state.preview_resize(&mut resize.changes, resize.anchor, scale);
+                            } else if let Some(working_move) = working_move.as_mut() {
+                                working_move.1 = mouse_drawing_pos;
+                            } else {
+                                let resize_bounds = resizable_selection_bounds(&state, &font)
+                                    .map(|bounds| resize_handle(bounds, state.camera.zoom));
+                                if resize_bounds.is_some_and(|handle| {
+                                    handle.check_collision_point_rec(mouse_drawing_pos)
+                                }) {
+                                    if let Some(bounds) = resizable_selection_bounds(&state, &font)
+                                    {
+                                        working_resize = Some(WorkingResize {
+                                            anchor: bounds.min,
+                                            diagonal: mouse_drawing_pos - bounds.min,
+                                            changes: state
+                                                .capture_resize_changes(&state.selected_things),
+                                        });
+                                    }
+                                } else {
+                                    working_move = Some((mouse_drawing_pos, mouse_drawing_pos));
+                                }
+                            }
+                        }
+
+                        if was_mouse_button_released(
+                            &mut rl,
+                            MouseButton::MOUSE_BUTTON_LEFT,
+                            &mouse_buttons_pressed_last_frame,
+                        ) {
+                            if let Some(mut resize) = working_resize.take() {
+                                let scale = resize_scale(&resize, mouse_drawing_pos);
+                                state.preview_resize(&mut resize.changes, resize.anchor, scale);
+                                state.commit_resize_with_undo(resize.changes);
+                            } else if let Some(working_move) = working_move {
+                                let move_diff = working_move.1 - working_move.0;
+
+                                if move_diff.x.abs() > 0.0 || move_diff.y.abs() > 0.0 {
+                                    state.move_things_with_undo(
+                                        &state.selected_things.clone(),
+                                        move_diff,
+                                    );
+                                }
+                            }
+                            working_move = None;
+                            state.selected_things.clear();
+                            state.mode = Mode::UsingTool(Tool::Brush);
+                        }
+                    }
+                },
+                Mode::PickingBackgroundColor(color_picker) => {
+                    if is_mouse_button_pressed(
+                        &mut rl,
+                        MouseButton::MOUSE_BUTTON_LEFT,
+                        &mut mouse_buttons_pressed_this_frame,
+                    ) && !is_clicking_gui(state.mouse_pos, color_picker.bounds_with_slider())
+                    {
+                        state.mode = Mode::UsingTool(Tool::Brush);
+                    }
+                }
+                Mode::TypingText => {
+                    if rl.is_key_down(KeyboardKey::KEY_BACKSPACE)
+                        && time_since_last_text_deletion >= delay_between_text_deletions
+                    {
+                        if let Some(text) = working_text.as_mut() {
+                            let _removed_char = text.content.pop();
+                        }
+                        time_since_last_text_deletion = Duration::ZERO;
+                    }
+
+                    if rl.is_key_down(KeyboardKey::KEY_ENTER) {
+                        dbg!("Exiting text tool");
+                        if let Some(mut text) = working_text {
+                            if !text.content.is_empty() {
+                                text.color = state.text_color;
+                                text.size = state.text_size;
+                                let thing = Thing {
+                                    kind: Renderable::Text(text),
+                                };
+                                state.add_thing_with_undo(thing);
+                            }
+                        }
+
+                        working_text = None;
+                        state.mode = Mode::UsingTool(Tool::Brush);
+                        close_color_picker(
+                            &mut color_picker_info,
+                            &mut color_picker_closed_this_frame,
+                        );
+                    }
+
+                    let char_pressed = if paste_pressed {
+                        None
+                    } else if state.is_playing_inputs && !state.replay_text_input.is_empty() {
+                        Some(state.replay_text_input.remove(0))
+                    } else {
+                        get_char_pressed()
+                    };
+
+                    // TODO: FIXME: BUG: Raylib's event automation doesn't track chars pressed (probably due to
+                    // platform differences). If we relied on key pressed instead, then:
+                    //      - We wouldn't be able to differ between uppercase and lowercase (KEY_A
+                    //      doesn't tell you if it's lower or uppercase)
+                    //      - We'd need to make our own "repeat key" logic, as holding a key looks like
+                    //      it only gets 1 key pressed raylib event fired off (makes sense)
+
+                    if let Some(ch) = char_pressed {
+                        append_input_to_working_text(
+                            ch,
+                            &mut working_text,
+                            state.text_size,
+                            state.text_color,
+                        )
+                    }
+                }
+                Mode::ShowingKeymapPanel => {
+                    if is_mouse_button_pressed(
+                        &mut rl,
+                        MouseButton::MOUSE_BUTTON_LEFT,
+                        &mut mouse_buttons_pressed_this_frame,
+                    ) && !is_clicking_gui(state.mouse_pos, keymap_panel_bounds)
+                    {
+                        state.mode = Mode::default();
+                    }
                 }
             }
-            Mode::ShowingKeymapPanel => {
-                if is_mouse_button_pressed(
-                    &mut rl,
-                    MouseButton::MOUSE_BUTTON_LEFT,
-                    &mut mouse_buttons_pressed_this_frame,
-                ) && !is_clicking_gui(state.mouse_pos, keymap_panel_bounds)
-                {
-                    state.mode = Mode::default();
-                }
-            }
-        }
 
-        if state.mode != Mode::TypingText {
-            // TODO: FIXME: If these keymaps share keys (like S to move the camera, and ctrl + S to
-            // save), then both will actions be triggered. Haven't thought about how to handle
-            // that yet
-            // Ctrl/Cmd+V must not also trigger the plain-V recording shortcut.
-            if !paste_pressed {
-                process_key_pressed_events(
+            if state.mode != Mode::TypingText {
+                // TODO: FIXME: If these keymaps share keys (like S to move the camera, and ctrl + S to
+                // save), then both will actions be triggered. Haven't thought about how to handle
+                // that yet
+                // Ctrl/Cmd+V must not also trigger the plain-V recording shortcut.
+                if !paste_pressed {
+                    process_key_pressed_events(
+                        &keymap,
+                        &mut debugging,
+                        &mut rl,
+                        &mut brush,
+                        &mut state,
+                        &mut processed_press_commands,
+                        &mut automation_events_list,
+                        &mut automation_events,
+                    );
+                }
+                process_key_down_events(
                     &keymap,
-                    &mut debugging,
+                    screen_width,
+                    screen_height,
                     &mut rl,
                     &mut brush,
                     &mut state,
-                    &mut processed_press_commands,
-                    &mut automation_events_list,
-                    &mut automation_events,
+                    delta_time,
                 );
             }
-            process_key_down_events(
-                &keymap,
-                screen_width,
-                screen_height,
+
+            // TODO: Configurable mouse buttons
+            if is_mouse_button_down(
                 &mut rl,
-                &mut brush,
-                &mut state,
-                delta_time,
-            );
-        }
-
-        // TODO: Configurable mouse buttons
-        if is_mouse_button_down(
-            &mut rl,
-            MouseButton::MOUSE_BUTTON_MIDDLE,
-            &mut mouse_buttons_pressed_this_frame,
-        ) {
-            apply_mouse_drag_to_camera(state.mouse_pos, last_mouse_pos, &mut state.camera);
-        }
-
-        let mouse_wheel_diff = rl.get_mouse_wheel_move();
-        if rl.is_key_up(KeyboardKey::KEY_LEFT_CONTROL) {
-            apply_mouse_wheel_zoom(mouse_wheel_diff, &mut state.camera);
-        }
-
-        if rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL) {
-            if state.mode == Mode::UsingTool(Tool::Brush) {
-                apply_mouse_wheel_brush_size(mouse_wheel_diff, &mut brush);
+                MouseButton::MOUSE_BUTTON_MIDDLE,
+                &mut mouse_buttons_pressed_this_frame,
+            ) {
+                apply_mouse_drag_to_camera(state.mouse_pos, last_mouse_pos, &mut state.camera);
             }
 
-            if state.mode == Mode::UsingTool(Tool::Text) || state.mode == Mode::TypingText {
-                apply_mouse_wheel_text_size(mouse_wheel_diff, &mut state.text_size);
+            let mouse_wheel_diff = rl.get_mouse_wheel_move();
+            if rl.is_key_up(KeyboardKey::KEY_LEFT_CONTROL) {
+                apply_mouse_wheel_zoom(mouse_wheel_diff, &mut state.camera);
             }
+
+            if rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL) {
+                if state.mode == Mode::UsingTool(Tool::Brush) {
+                    apply_mouse_wheel_brush_size(mouse_wheel_diff, &mut brush);
+                }
+
+                if state.mode == Mode::UsingTool(Tool::Text) || state.mode == Mode::TypingText {
+                    apply_mouse_wheel_text_size(mouse_wheel_diff, &mut state.text_size);
+                }
+            }
+
+            clamp_brush_size(&mut brush);
+
+            clamp_camera_zoom(&mut state.camera);
+
+            last_mouse_pos = state.mouse_pos;
         }
-
-        clamp_brush_size(&mut brush);
-
-        clamp_camera_zoom(&mut state.camera);
-
-        last_mouse_pos = state.mouse_pos;
 
         let camera_view_boundary = rrect(
             state.camera.offset.x / state.camera.zoom + state.camera.target.x
@@ -759,6 +787,12 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                 }
             }
 
+            // While replay simulation is paused, regular app controls remain visible but cannot
+            // mutate state. Replay debugger controls are unlocked separately below.
+            if replay_debugger.is_some() && !did_simulate {
+                drawing.gui_lock();
+            }
+
             // Draw non "world space" GUI elements for the current mode
             match state.mode {
                 Mode::UsingTool(Tool::ColorPicker) => {
@@ -832,7 +866,7 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                 debug_draw_info(&mut drawing, &state, mouse_drawing_pos, current_fps);
             }
 
-            if show_location_gui {
+            if show_location_gui && replay_debugger.is_none() {
                 // TODO: Currently draws and does camera jump logic. would be nice to separate
                 draw_location_list(
                     &mut location_selected_location_index,
@@ -840,6 +874,20 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                     &state.locations,
                     &mut state.camera,
                     &mut drawing,
+                );
+            }
+
+            if let Some(debugger) = replay_debugger.as_mut() {
+                if !did_simulate {
+                    drawing.gui_unlock();
+                }
+                draw_replay_debugger(
+                    &mut drawing,
+                    debugger,
+                    &state,
+                    &automation_events,
+                    screen_width,
+                    screen_height,
                 );
             }
         }
@@ -850,15 +898,23 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             thread::sleep(time_to_sleep);
         }
 
-        for (button, was_pressed) in mouse_buttons_pressed_last_frame.iter_mut() {
-            *was_pressed = *mouse_buttons_pressed_this_frame.get(button).unwrap();
-        }
-        for (_, was_pressed) in mouse_buttons_pressed_this_frame.iter_mut() {
-            *was_pressed = false;
+        if did_simulate {
+            for (button, was_pressed) in mouse_buttons_pressed_last_frame.iter_mut() {
+                *was_pressed = *mouse_buttons_pressed_this_frame.get(button).unwrap();
+            }
+            for (_, was_pressed) in mouse_buttons_pressed_this_frame.iter_mut() {
+                *was_pressed = false;
+            }
         }
 
         if let Some(debugger) = replay_debugger.as_mut() {
-            if debug_replay_after_frame(debugger, &mut state, &test_options, &automation_events) {
+            if debug_replay_after_frame(
+                debugger,
+                did_simulate,
+                &mut state,
+                &test_options,
+                &automation_events,
+            ) {
                 return;
             }
         }
@@ -1456,6 +1512,94 @@ fn jump_camera_to(camera: &mut Camera2D, location: Vector2) {
     // be a separate 'navigation' command concept thing yet but we'll cross that bridge
     // someday maybe)
     camera.target = location;
+}
+
+fn draw_replay_debugger(
+    drawing: &mut RaylibDrawHandle,
+    debugger: &mut ReplayDebugger,
+    state: &State,
+    events: &[AutomationEvent],
+    screen_width: i32,
+    screen_height: i32,
+) {
+    let panel = rrect(10, screen_height - 105, screen_width - 20, 95);
+    drawing.draw_rectangle_rec(panel, Color::new(30, 30, 30, 235));
+    drawing.draw_rectangle_lines_ex(panel, 1.0, Color::LIGHTGRAY);
+    drawing.draw_text(
+        &debugger.status(state, events),
+        panel.x as i32 + 10,
+        panel.y as i32 + 8,
+        16,
+        Color::RAYWHITE,
+    );
+
+    let button_y = panel.y + 40.0;
+    let button_width = 125.0;
+    let button_height = 36.0;
+    let button_gap = 8.0;
+    let mut button_x = panel.x + 10.0;
+
+    if debugger.is_paused() {
+        if replay_debug_button(
+            drawing,
+            rrect(button_x, button_y, button_width, button_height),
+            "Frame (F6)",
+        ) {
+            debugger.step_frame();
+        }
+        button_x += button_width + button_gap;
+        if replay_debug_button(
+            drawing,
+            rrect(button_x, button_y, button_width, button_height),
+            "Event (F7)",
+        ) {
+            debugger.step_event();
+        }
+        button_x += button_width + button_gap;
+        if replay_debug_button(
+            drawing,
+            rrect(button_x, button_y, button_width, button_height),
+            "Stroke (F8)",
+        ) {
+            debugger.step_mouse_stroke();
+        }
+        button_x += button_width + button_gap;
+        if replay_debug_button(
+            drawing,
+            rrect(button_x, button_y, button_width, button_height),
+            "Continue (F5)",
+        ) {
+            debugger.toggle_continue();
+        }
+    } else if debugger.is_running() {
+        drawing.draw_text(
+            "Running - press F5 to pause",
+            button_x as i32,
+            button_y as i32 + 8,
+            20,
+            Color::LIME,
+        );
+    } else if debugger.is_finished() {
+        drawing.draw_text(
+            "Replay complete - close the window to exit",
+            button_x as i32,
+            button_y as i32 + 8,
+            20,
+            Color::LIME,
+        );
+    } else {
+        drawing.draw_text(
+            "Completing step...",
+            button_x as i32,
+            button_y as i32 + 8,
+            20,
+            Color::YELLOW,
+        );
+    }
+}
+
+fn replay_debug_button(drawing: &mut RaylibDrawHandle, bounds: Rectangle, label: &str) -> bool {
+    drawing.gui_button(bounds, label)
 }
 
 const LOCATION_LIST_BOUNDS: Rectangle = Rectangle {
