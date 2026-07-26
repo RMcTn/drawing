@@ -1,0 +1,13 @@
+#
+# Automation events exporter v1.0 - raylib automation events list
+#
+c 9
+e 0 7 1000 115 0 0 // Event: INPUT_MOUSE_POSITION (first location)
+e 1 6 0 0 0 0 // Event: INPUT_MOUSE_BUTTON_DOWN
+e 2 5 0 0 0 0 // Event: INPUT_MOUSE_BUTTON_UP
+e 4 2 85 0 0 0 // Event: INPUT_KEY_DOWN (U: record current location)
+e 5 1 85 0 0 0 // Event: INPUT_KEY_UP (U)
+e 7 7 1000 145 0 0 // Event: INPUT_MOUSE_POSITION (second location)
+e 8 6 0 0 0 0 // Event: INPUT_MOUSE_BUTTON_DOWN
+e 9 5 0 0 0 0 // Event: INPUT_MOUSE_BUTTON_UP
+e 11 0 0 0 0 0 // Draw app: trailing no-op

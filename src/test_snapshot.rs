@@ -27,6 +27,7 @@ pub struct StateSnapshot<'a> {
     foreground_color: Color,
     text_size: TextSize,
     text_color: TextColor,
+    locations: &'a [Vector2],
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -122,6 +123,7 @@ impl<'a> From<&'a State> for StateSnapshot<'a> {
             foreground_color: state.foreground_color.0,
             text_size: state.text_size,
             text_color: state.text_color,
+            locations: &state.locations,
         }
     }
 }

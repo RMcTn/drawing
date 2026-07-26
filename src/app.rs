@@ -111,7 +111,16 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
         selected_things: vec![],
         mouse_drag_box: None,
         replay_text_input: vec![],
+        locations: Vec::new(),
     };
+
+    state.locations.push(rvec2(500, 500));
+    state.locations.push(rvec2(1500, 500));
+    state.locations.push(rvec2(3500, 500));
+
+    let show_location_gui = true;
+    let mut location_list_view_focus = 0;
+    let mut location_selected_location_index = -1;
 
     if let Some(replay_path) = replay_path {
         if let Some(()) = load_replay(
@@ -252,6 +261,9 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
             paste_clipboard(&mut state, mouse_drawing_pos, text_target);
         }
 
+        let is_mouse_over_location_list =
+            show_location_gui && LOCATION_LIST_BOUNDS.check_collision_point_rec(state.mouse_pos);
+
         match state.mode {
             Mode::UsingTool(tool) => match tool {
                 Tool::Brush => {
@@ -263,7 +275,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_color_picker_active(&color_picker_info)
+                    ) && !is_mouse_over_location_list
+                        && !is_color_picker_active(&color_picker_info)
                     {
                         if brush.brush_type == BrushType::Deleting {
                             let strokes_to_delete =
@@ -309,7 +322,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
-                    ) && !is_color_picker_active(&color_picker_info)
+                    ) && !is_mouse_over_location_list
+                        && !is_color_picker_active(&color_picker_info)
                         && !color_picker_closed_this_frame
                     {
                         debug!("Hit left click on text tool");
@@ -330,7 +344,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
-                    ) {
+                    ) && !is_mouse_over_location_list
+                    {
                         // NOTE: This literally is whatever color is at the screen. This includes
                         // GUI elements! If it gets annoying enough, it can be changed, but this
                         // was simpler
@@ -345,7 +360,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
-                    ) {
+                    ) && !is_mouse_over_location_list
+                    {
                         if let Some(drag_box) = state.mouse_drag_box {
                             let drag_box = BoundingBox2D {
                                 min: drag_box.min,
@@ -385,7 +401,8 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
                         &mut rl,
                         MouseButton::MOUSE_BUTTON_LEFT,
                         &mut mouse_buttons_pressed_this_frame,
-                    ) {
+                    ) && !is_mouse_over_location_list
+                    {
                         if let Some(resize) = working_resize.as_mut() {
                             let scale = resize_scale(resize, mouse_drawing_pos);
                             state.preview_resize(&mut resize.changes, resize.anchor, scale);
@@ -805,6 +822,17 @@ pub fn run(replay_path: Option<PathBuf>, test_options: Option<TestSettings>) {
 
             if debugging {
                 debug_draw_info(&mut drawing, &state, mouse_drawing_pos, current_fps);
+            }
+
+            if show_location_gui {
+                // TODO: Currently draws and does camera jump logic. would be nice to separate
+                draw_location_list(
+                    &mut location_selected_location_index,
+                    &mut location_list_view_focus,
+                    &state.locations,
+                    &mut state.camera,
+                    &mut drawing,
+                );
             }
         }
 
@@ -1251,6 +1279,7 @@ pub(crate) enum PressCommand {
     ToggleRecording,
     LoadAndPlayRecordedInputs,
     UseSelectionPicker,
+    RecordLocation,
 }
 
 type KeyboardKeyCombo = Vec<KeyboardKey>;
@@ -1304,6 +1333,7 @@ fn default_keymap() -> Keymap {
             PressCommand::LoadAndPlayRecordedInputs,
         ),
         (vec![KeyboardKey::KEY_G], PressCommand::UseSelectionPicker),
+        (vec![KeyboardKey::KEY_U], PressCommand::RecordLocation),
     ]);
     let on_hold = HoldKeyMappings::from([
         (KeyboardKey::KEY_A, HoldCommand::PanCameraHorizontal(-250)),
@@ -1405,4 +1435,46 @@ fn close_color_picker(
     // TODO: REFACTOR: This also feels like a gui state thing
     *color_picker_info = None;
     *color_picker_closed_this_frame = true;
+}
+
+fn jump_camera_to(camera: &mut Camera2D, location: Vector2) {
+    // TODO: put jumps into the command system for undo/redo state (idk if we want this to
+    // be a separate 'navigation' command concept thing yet but we'll cross that bridge
+    // someday maybe)
+    camera.target = location;
+}
+
+const LOCATION_LIST_BOUNDS: Rectangle = Rectangle {
+    x: 960.0,
+    y: 100.0,
+    width: 300.0,
+    height: 300.0,
+};
+
+fn draw_location_list(
+    location_selected_location_index: &mut i32,
+    location_list_view_focus: &mut i32,
+    locations: &[Vector2],
+    camera: &mut Camera2D,
+    drawing: &mut RaylibDrawHandle,
+) {
+    let mut just_selected_location_index = *location_selected_location_index;
+    drawing.gui_list_view_ex(
+        LOCATION_LIST_BOUNDS,
+        locations.iter().map(|loc| format!("{:?} location", loc)),
+        location_list_view_focus,
+        &mut just_selected_location_index,
+        &mut 0, // Index of hovered over element, we only want clicks
+    );
+
+    if just_selected_location_index >= 0
+        && just_selected_location_index != *location_selected_location_index
+    {
+        // BUG: Clicking a location, moving away, then clicking the same location won't
+        // jump with this current method
+        let location = locations[just_selected_location_index as usize];
+        jump_camera_to(camera, location);
+
+        *location_selected_location_index = just_selected_location_index;
+    }
 }

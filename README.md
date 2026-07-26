@@ -54,6 +54,7 @@ Two types of key inputs:
 | KEY_T | Change to Text Tool |
 | KEY_B | Change background color |
 | KEY_C | Change to Color Picker Tool |
+| KEY_U | Record the current camera location |
 
 #### Hold keys
 | Key | Action |

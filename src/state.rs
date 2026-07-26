@@ -74,6 +74,8 @@ pub struct State {
     /// Unicode code points queued by app-specific replay text events.
     #[serde(skip)]
     pub replay_text_input: Vec<u32>,
+    #[serde(default)]
+    pub locations: Vec<Vector2>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]

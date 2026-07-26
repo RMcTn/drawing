@@ -182,6 +182,7 @@ pub fn process_key_pressed_events(
                 UseSelectionPicker => {
                     state.mode = Mode::UsingTool(Tool::Selection);
                 }
+                RecordLocation => state.locations.push(state.camera.target),
                 ToggleKeymapWindow => match state.mode {
                     Mode::ShowingKeymapPanel => state.mode = Mode::default(),
                     _ => state.mode = Mode::ShowingKeymapPanel,
